@@ -1,8 +1,8 @@
 use color_eyre::Result;
 use crossterm::event::{self, KeyCode};
 use ratatui::{DefaultTerminal, Frame, layout};
-use ratatui::widgets::{Block, Clear, Gauge, Paragraph, Row, Table, TableState, Tabs, Wrap, List, ListState};
-use ratatui::layout::{Alignment, Layout, Offset, Position, Rect};
+use ratatui::widgets::{Block, Clear, Gauge, List, ListState, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table, TableState, Tabs, Wrap};
+use ratatui::layout::{Alignment, Layout, Margin, Offset, Position, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::layout::Constraint::{Length, Fill, Percentage};
 use ratatui::text::{Line, Span, Text};
@@ -93,6 +93,7 @@ pub struct App {
 	item_table_state: TableState,
 	spell_table_state: TableState,
 	edit_select_list_state: ListState,
+	note_scrollbar_state: ScrollbarState,
 
 	active_tab: Tab,
 
@@ -127,6 +128,7 @@ impl App {
 			item_table_state: TableState::new(),
 			spell_table_state: TableState::new(),
 			edit_select_list_state: ListState::default().with_selected(Some(0)),
+			note_scrollbar_state: ScrollbarState::default(),
 
 			active_tab: Tab::Items,
 
@@ -286,12 +288,12 @@ impl App {
 				KeyCode::Up => match self.active_tab {
 					Tab::Items => self.item_table_state.select_previous(),
 					Tab::Spells => self.spell_table_state.select_previous(),
-					_ => {},
+					Tab::Notes => self.note_scrollbar_state.scroll(ratatui::widgets::ScrollDirection::Backward),
 				},
 				KeyCode::Down =>  match self.active_tab {
 					Tab::Items => self.item_table_state.select_next(),
 					Tab::Spells => self.spell_table_state.select_next(),
-					_ => {},
+					Tab::Notes => self.note_scrollbar_state.scroll(ratatui::widgets::ScrollDirection::Forward),
 				},
 
 				KeyCode::Right => self.active_tab = match self.active_tab {
@@ -681,7 +683,7 @@ impl App {
 	}
 
 	fn render_notes(&mut self, frame: &mut Frame, area: Rect) {
-		let lorem_ipsum = match std::fs::read_to_string(&self.notes_path) {
+		let data = match std::fs::read_to_string(&self.notes_path) {
 			Ok(s) => s,
 			Err(err) => {
 				self.set_err(err.to_string());
@@ -689,11 +691,31 @@ impl App {
 			},
 		};
 
-	frame.render_widget(
-		Paragraph::new(lorem_ipsum)
+		let paragraph = Paragraph::new(data)
 			.wrap(Wrap{trim: false,})
-			.block(Self::default_block()),
-		area);
+			.scroll((self.note_scrollbar_state.get_position() as u16, 0))
+			.block(Self::default_block());
+
+		let n_lines = paragraph.line_count(area.width);
+
+		frame.render_widget(
+			paragraph,
+			area);
+
+		if n_lines > area.height as usize {
+			self.note_scrollbar_state = self.note_scrollbar_state.content_length(n_lines - (area.height - 1) as usize);
+			let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
+
+			frame.render_stateful_widget(
+				scrollbar,
+				area.inner(Margin{
+					vertical: 1,
+					horizontal: 0,
+				}),
+				&mut self.note_scrollbar_state,
+			);
+		}
+
 	}
 
 	fn render_tabs(&mut self, frame: &mut Frame, area: Rect) {
