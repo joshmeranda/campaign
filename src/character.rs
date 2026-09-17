@@ -8,66 +8,12 @@ use ratatui::layout::Constraint::{Length, Fill, Percentage};
 use ratatui::text::{Line, Span, Text};
 use ratatui::style::palette::tailwind::{SLATE, RED};
 use utils::{color_for_damage_percent_lost};
-use std::error::Error;
-use std::{fmt, fs};
+use std::fs;
 use serde::de::DeserializeOwned;
-use std::num::ParseIntError;
 
 use crate::character::utils::to_roman_numerals;
 use crate::types::{Ability, Character, Status};
-
-struct InputError {
-	s: String,
-}
-
-impl From<ParseIntError> for InputError {
-	fn from(value: ParseIntError) -> InputError {
-		InputError{ s:
-			value.to_string()
-		}
-	}
-}
-
-impl From<String> for InputError {
-	fn from(s: String) -> InputError {
-		InputError {
-			s: s,
-		 }
-	}
-}
-
-impl fmt::Display for InputError {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", self.s)
-	}
-}
-
-#[derive(Debug)]
-pub struct AppError {
-	s: String,
-}
-
-impl From<std::io::Error> for AppError{
-	fn from(value: std::io::Error) -> AppError {
-		AppError{ s:
-			value.to_string()
-		}
-	}
-}
-
-impl From<serde_yaml::Error> for AppError{
-	fn from(value: serde_yaml::Error) -> AppError {
-		AppError{ s:
-			value.to_string()
-		}
-	}
-}
-
-impl fmt::Display for AppError {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", self.s)
-	}
-}
+use crate::error::AppError;
 
 mod utils {
 	use ratatui::style::Color;
@@ -130,7 +76,6 @@ enum AppMode {
 	Exitting,
 }
 
-// figure out displaying errors (ideally have it show for 2-5 seconds before disappering)
 pub struct App {
 	character_path: std::path::PathBuf,
 	status_path: std::path::PathBuf,
@@ -191,7 +136,7 @@ impl App {
 		})
 	}
 
-	pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<(), Box<dyn Error>> {
+	pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<(), AppError> {
 		self.item_table_state.select_first();
 		self.item_table_state.select_first_column();
 
@@ -316,7 +261,7 @@ impl App {
 			&mut self.edit_select_list_state);
 	}
 
-	fn handle_events(&mut self) -> Result<()> {
+	fn handle_events(&mut self) -> Result<(), AppError> {
 		if let Some(key) = event::read()?.as_key_press_event() {
 			match key.code {
 				KeyCode::Char('q') => {
@@ -367,7 +312,7 @@ impl App {
 		Ok(())
 	}
 
-	fn handle_help_events(&mut self) -> Result<()> {
+	fn handle_help_events(&mut self) -> Result<(), AppError> {
 		if let Some(key) = event::read()?.as_key_press_event() {
 			match key.code {
 				KeyCode::Esc => self.mode = AppMode::Idle,
@@ -378,7 +323,7 @@ impl App {
 		Ok(())
 	}
 
-	fn handle_input_events(&mut self) -> Result<()> {
+	fn handle_input_events(&mut self) -> Result<(), AppError> {
 		if let Some(key) = event::read()?.as_key_press_event() {
 			match key.code {
 				KeyCode::Esc => {
@@ -425,7 +370,7 @@ impl App {
 		Ok(())
 	}
 
-	fn handle_input(&mut self) -> Result<(), InputError> {
+	fn handle_input(&mut self) -> Result<(), AppError> {
 		match self.mode {
 			AppMode::Input(t) => {
 				match t {
@@ -441,14 +386,14 @@ impl App {
 						let slot = self.input.parse::<usize>()?;
 
 						if slot == 0 || slot > 9 {
-							return Err(InputError::from(String::from("spell slots must be > 0 and < 9")))
+							return Err(AppError::from(String::from("spell slots must be > 0 and < 9")))
 						}
 
 						if self.character.spell_slots[slot - 1] - self.status.used_slots[slot - 1] > 0 {
 							self.status.cast(slot);
 							self.state_updated = true;
 						} else {
-							return Err(InputError::from(String::from("not enough slots available")))
+							return Err(AppError::from(String::from("not enough slots available")))
 						}
 					},
 				}
@@ -459,7 +404,7 @@ impl App {
 		Ok(())
 	}
 
-	fn handle_edit_select_events(&mut self) -> Result<()> {
+	fn handle_edit_select_events(&mut self) -> Result<(), AppError> {
 		if let Some(key) = event::read()?.as_key_press_event() {
 			match key.code {
 				KeyCode::Up => self.edit_select_list_state.select_previous(),

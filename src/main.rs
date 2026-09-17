@@ -1,5 +1,6 @@
 mod types;
 mod character;
+mod error;
 
 use character::App;
 use std::error::Error;
