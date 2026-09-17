@@ -159,9 +159,12 @@ impl App {
 				AppMode::Input(_) => self.handle_input_events()?,
 				AppMode::EditSelection => self.handle_edit_select_events()?,
 				AppMode::Editting => {
-					self.edit_file()?;
+					if let Err(err) = self.edit_file() {
+						self.set_err(err.to_string());
+					} else {
+						self.mode = AppMode::Idle;
+					}
 
-					self.mode = AppMode::Idle;
 					terminal.clear()?;
 				},
 				AppMode::Error => _ = {
@@ -205,10 +208,9 @@ impl App {
 		
 		let path_name = path.to_str().unwrap();
 
-		// todo: we are ignoring potentially errors here
 		_ = std::process::Command::new("nano")
 			.args(["--autoindent", path_name])
-			.status();
+			.status()?;
 
 		match selected {
 			0 => self.character = Self::load_from_path(path)?,
@@ -222,45 +224,6 @@ impl App {
 	fn set_err(&mut self, msg: String) {
 		self.err = Some(msg);
 		self.mode = AppMode::Error;
-	}
-
-	fn render_popup(frame: &mut Frame, message: String) {
-		let area = frame.area();
-		let area = area.centered(Percentage(50),Percentage(10));
-
-		frame.render_widget(Clear, area);
-
-		frame.render_widget(
-			Paragraph::new(message)
-				.alignment(Alignment::Center)
-				.block(Self::default_block().bg(RED.c900).title("Error").title_bottom("press any key to continue")),
-			area,
-		);
-	}
-
-	fn render_edit_list(&mut self, frame: &mut Frame) {
-		let area = frame.area();
-		let area = area.centered(Percentage(60), Length(5));
-
-		let items = [
-			"Character - semi-permanent traits that change rarely",
-			"State - ephemeral values which may change on the fly",
-			"Notes - notes about your character",
-		];
-
-		frame.render_widget(Clear, area);
-
-		frame.render_stateful_widget(
-			List::new(items)
-				.block(
-					Self::default_block()
-					.title(" What do you want to edit? ")
-					.title_bottom(" press ESC to quit ")
-				)
-				.highlight_style(Modifier::REVERSED)
-				.highlight_symbol("> "),
-			area,
-			&mut self.edit_select_list_state);
 	}
 
 	fn handle_events(&mut self) -> Result<(), AppError> {
@@ -432,6 +395,45 @@ impl App {
 			.bg(Self::BLOCK_COLOR)
 			.title_alignment(Alignment::Center)
 			.title_style(Modifier::BOLD)
+	}
+
+	fn render_popup(frame: &mut Frame, message: String) {
+		let area = frame.area();
+		let area = area.centered(Percentage(50),Percentage(10));
+
+		frame.render_widget(Clear, area);
+
+		frame.render_widget(
+			Paragraph::new(message)
+				.alignment(Alignment::Center)
+				.block(Self::default_block().bg(RED.c900).title("Error").title_bottom("press any key to continue")),
+			area,
+		);
+	}
+
+	fn render_edit_list(&mut self, frame: &mut Frame) {
+		let area = frame.area();
+		let area = area.centered(Percentage(60), Length(5));
+
+		let items = [
+			"Character - semi-permanent traits that change rarely",
+			"State - ephemeral values which may change on the fly",
+			"Notes - notes about your character",
+		];
+
+		frame.render_widget(Clear, area);
+
+		frame.render_stateful_widget(
+			List::new(items)
+				.block(
+					Self::default_block()
+					.title(" What do you want to edit? ")
+					.title_bottom(" press ESC to quit ")
+				)
+				.highlight_style(Modifier::REVERSED)
+				.highlight_symbol("> "),
+			area,
+			&mut self.edit_select_list_state);
 	}
 
 	fn render_header_name(&self, frame: &mut Frame, area: Rect) {
