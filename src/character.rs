@@ -260,14 +260,22 @@ impl App {
 				},
 
 				KeyCode::Right => self.active_tab = match self.active_tab {
-					Tab::Items => Tab::Spells,
+					Tab::Items => if self.character.spells.len() > 0 {
+						Tab::Spells
+					} else {
+						Tab::Notes
+					},
 					Tab::Spells => Tab::Notes,
 					Tab::Notes => Tab::Items,
 				},
 				KeyCode::Left => self.active_tab = match self.active_tab {
 					Tab::Items => Tab::Notes,
 					Tab::Spells => Tab::Items,
-					Tab::Notes => Tab::Spells,
+					Tab::Notes => if self.character.spells.len() > 0 {
+						Tab::Spells
+					} else {
+						Tab::Items
+					}
 				},
 
 				_ => {}
@@ -721,9 +729,25 @@ impl App {
 	}
 
 	fn render_tabs(&mut self, frame: &mut Frame, area: Rect) {
-		let tabs = Tabs::new(vec!["items", "spells", "notes"])
+		let items = if self.character.spells.len() > 0 {
+			vec!["items", "spells", "notes"]
+		} else {
+			vec!["items", "notes"]
+		};
+
+		let tab_index = match self.active_tab {
+			Tab::Items => 0,
+			Tab::Spells => 1,
+			Tab::Notes => if self.character.spells.len() > 0 {
+				2
+			} else {
+				1
+			}
+		};
+
+		let tabs = Tabs::new(items)
 			.highlight_style(Style::default().bg(Self::BLOCK_COLOR).fg(Color::White))
-			.select(self.active_tab as usize);
+			.select(tab_index);
 
 		frame.render_widget(tabs, area);
 
