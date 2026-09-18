@@ -15,16 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let status_path = path.join(STATUS_FILENAME);
 	let notes_path = path.join(NOTES_FILENAME);
 
-	// todo: this bit is messy
-
-	let result = App::new(character_path, status_path, notes_path);
-
-	if let Err(err) = result {
-		println!("{}", err.to_string());
-		return Ok(())
-	}
-
-	let mut app = result.expect("");
+	let mut app = App::new(character_path, status_path, notes_path)?;
 
 	ratatui::run(|terminal| {
 		if let Err(err) = app.run(terminal) {

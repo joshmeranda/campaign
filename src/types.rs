@@ -32,7 +32,7 @@ pub struct Character {
 	pub spells: Vec<Spell>,
 	pub rages: u8,
 	pub languages: Vec<String>,
-	pub proficiences: Vec<String>,
+	pub proficiencies: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -56,30 +56,21 @@ pub struct Status{
 }
 
 impl Status {
-	pub fn damage(&mut self, mut damage: u8) {
-		if damage < self.temp_hp {
-			self.temp_hp -= damage;
-			damage = 0;
-		} else if damage >= self.temp_hp {
-			damage -= self.temp_hp;
-			self.temp_hp = 0
-		}
-		
-		if self.temp_hp == 0 {
-			self.damage += damage
-		}
+	pub fn damage(&mut self, damage: u8) {
+		let absorbed= self.temp_hp.min(damage);
+		let actual_damage = damage.saturating_sub(absorbed);
+
+		self.temp_hp -= absorbed;
+		self.damage = self.damage.saturating_add(actual_damage)
 	}
 
 	pub fn heal(&mut self, heal: u8) {
-		if heal > self.damage {
-			self.damage = 0;
-		} else {
-			self.damage -= heal
-		}
+		self.damage = self.damage.saturating_sub(heal);
 	}
 
+	// Decrements the amount of available spell slots are the given level. Slot is ignored if the given number is outside the valid range [0-9].
 	pub fn cast(&mut self, slot: usize) {
-		if slot >= 1 || slot <= 9 {
+		if slot >= 1 && slot <= 9 {
 			self.used_slots[slot-1] += 1;
 		}
 	}

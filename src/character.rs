@@ -70,10 +70,16 @@ enum AppMode {
 	Input(InputType),
 
 	EditSelection,
-	Editting,
+	Editing,
 
 	Error,
-	Exitting,
+	Exiting,
+}
+
+impl Default for AppMode {
+	fn default() -> Self {
+		Self::Idle
+	}
 }
 
 pub struct App {
@@ -89,7 +95,6 @@ pub struct App {
 	character: Character,
 	status: Status,
 
-	// todo: having 1 state for 2 tables will probably cause some issues
 	item_table_state: TableState,
 	spell_table_state: TableState,
 	edit_select_list_state: ListState,
@@ -100,7 +105,7 @@ pub struct App {
 	state_updated: bool,
 
 	// todo: provide a way to de-dup errors to prevent locking the UI (like when notes file does not exist or could not be read)
-	err: Option<String>,
+	err: Option<AppError>,
 }
 
 impl App {
@@ -117,7 +122,7 @@ impl App {
 			status_path,
 			notes_path,
 
-			mode: AppMode::Idle,
+			mode: AppMode::default(),
 
 			input: String::new(),
 			head: 0,
@@ -145,11 +150,13 @@ impl App {
 		self.spell_table_state.select_first();
 		self.spell_table_state.select_first_column();
 
-		while self.mode != AppMode::Exitting {
+		while self.mode != AppMode::Exiting {
 			terminal.draw(|frame| {
 				match self.mode {
 					AppMode::Help => self.render_help(frame),
-					_ => self.render(frame),
+					_ => if let Err(err) = self.render(frame) {
+						self.set_err(err);
+					},
 				}
 			})?;
 
@@ -158,9 +165,9 @@ impl App {
 				AppMode::Help => self.handle_help_events()?,
 				AppMode::Input(_) => self.handle_input_events()?,
 				AppMode::EditSelection => self.handle_edit_select_events()?,
-				AppMode::Editting => {
+				AppMode::Editing => {
 					if let Err(err) = self.edit_file() {
-						self.set_err(err.to_string());
+						self.set_err(err);
 					} else {
 						self.mode = AppMode::Idle;
 					}
@@ -171,7 +178,7 @@ impl App {
 					event::read()?; // we don't care about the actual key-press here
 					self.mode = AppMode::Idle;
 				},
-				AppMode::Exitting => terminal.clear()?,
+				AppMode::Exiting => terminal.clear()?,
 			};
 
 			if self.state_updated {
@@ -221,8 +228,8 @@ impl App {
 		Ok(())
 	}
 
-	fn set_err(&mut self, msg: String) {
-		self.err = Some(msg);
+	fn set_err(&mut self, err: AppError) {
+		self.err = Some(err);
 		self.mode = AppMode::Error;
 	}
 
@@ -231,14 +238,14 @@ impl App {
 			match key.code {
 				KeyCode::Char('q') => {
 					if self.mode == AppMode::Idle {
-						self.mode = AppMode::Exitting
+						self.mode = AppMode::Exiting
 					}
 				},
 				KeyCode::Char('d') => self.mode = AppMode::Input(InputType::Damage),
 				KeyCode::Char('h') => self.mode = AppMode::Input(InputType::Heal),
 				KeyCode::Char('r') => {
 					if self.status.used_rages == self.character.rages {
-						self.set_err(String::from("You ran out of rages"))
+						self.set_err(AppError::Error(String::from("You ran out of rages")))
 					} else {
 						self.status.rage();
 						self.state_updated = true;
@@ -311,7 +318,7 @@ impl App {
 				},
 				KeyCode::Enter => {
 					if let Err(err) = self.handle_input() {
-						self.set_err(err.to_string());
+						self.set_err(err);
 					} else {
 						self.mode = AppMode::Idle;
 					}
@@ -386,7 +393,7 @@ impl App {
 					self.mode = AppMode::Idle;
 					self.edit_select_list_state.select(Some(0));
 				},
-				KeyCode::Enter => self.mode = AppMode::Editting,
+				KeyCode::Enter => self.mode = AppMode::Editing,
 				_ => {},
 			}
 		}
@@ -536,7 +543,7 @@ impl App {
 		let mut lines = Vec::with_capacity(ability.proficiencies.len());
 
 		for ability in &ability.proficiencies {
-			if ability.0 == "" {
+			if ability.0.is_empty()  {
 				continue
 			}
 
@@ -646,7 +653,7 @@ impl App {
 
 	fn render_proficiencies(&self, frame: &mut Frame, area: Rect) {
 		// todo: should support scroll bar
-		let lines: Vec<Line<'_>> = self.character.proficiences.iter().map(|s| Line::from(s.clone())).collect();
+		let lines: Vec<Line<'_>> = self.character.proficiencies.iter().map(|s| Line::from(s.clone())).collect();
 		let text = Text::from(lines);
 	
 		frame.render_widget(Paragraph::new(text).block(Self::default_block().title(" proficiencies ")), area);
@@ -682,7 +689,7 @@ impl App {
 			.style(Style::default().bg(Self::BLOCK_COLOR))
 			.bold();
 		
-		let mut items = Vec::<Row>::with_capacity(self.status.items.len());
+		let mut items = Vec::<Row>::with_capacity(self.character.spells.len());
 		
 		for spell in &self.character.spells {
 			items.push(Row::new([
@@ -699,17 +706,11 @@ impl App {
 			.style(Color::White)
 			.row_highlight_style(Style::default().bg(Self::TAB_COLOR));
 		
-		frame.render_stateful_widget(table, area, &mut self.item_table_state);
+		frame.render_stateful_widget(table, area, &mut self.spell_table_state);
 	}
 
-	fn render_notes(&mut self, frame: &mut Frame, area: Rect) {
-		let data = match std::fs::read_to_string(&self.notes_path) {
-			Ok(s) => s,
-			Err(err) => {
-				self.set_err(err.to_string());
-				String::from("")
-			},
-		};
+	fn render_notes(&mut self, frame: &mut Frame, area: Rect) -> Result<(), AppError> {
+		let data = std::fs::read_to_string(&self.notes_path)?;
 
 		let paragraph = Paragraph::new(data)
 			.wrap(Wrap{trim: false,})
@@ -736,13 +737,14 @@ impl App {
 			);
 		}
 
+		Ok(())
 	}
 
-	fn render_tabs(&mut self, frame: &mut Frame, area: Rect) {
-		let items = if self.character.spells.len() > 0 {
-			vec!["items", "spells", "notes"]
-		} else {
+	fn render_tabs(&mut self, frame: &mut Frame, area: Rect) -> Result<(), AppError> {
+		let items = if self.character.spells.is_empty() {
 			vec!["items", "notes"]
+		} else {
+			vec!["items", "spells", "notes"]
 		};
 
 		let tab_index = match self.active_tab {
@@ -776,8 +778,10 @@ impl App {
 		match self.active_tab {
 			Tab::Items => self.render_items(frame, area),
 			Tab::Spells => self.render_spells(frame, area),
-			Tab::Notes => self.render_notes(frame, area),
+			Tab::Notes => self.render_notes(frame, area)?,
 		}
+
+		Ok(())
 	}
 
 	const SHORT_BINDINGS_LIST: [(&'static str, &'static str); 7] = [
@@ -827,7 +831,7 @@ impl App {
 		frame.set_cursor_position(Position::new(input.x + (self.head as u16), input.y));
 	}
 
-	fn render(&mut self, frame: &mut Frame) {
+	fn render(&mut self, frame: &mut Frame) -> Result<(), AppError> {
 		let area = frame.area();
 
 		frame.render_widget(Clear, area);
@@ -887,7 +891,7 @@ impl App {
 		self.render_coins(frame, left_lower_middle);
 		self.render_proficiencies(frame, left_bottom);
 
-		self.render_tabs(frame, right);
+		self.render_tabs(frame, right)?;
 
 		match self.mode {
 			AppMode::Input(t) => self.render_input(frame, bindings, t),
@@ -897,15 +901,17 @@ impl App {
 			},
 			AppMode::Error => {
 				self.render_bindings(frame, bindings);
-				if let Some(msg) = &self.err {
-					Self::render_popup(frame, msg.clone());
+				if let Some(err) = &self.err {
+					Self::render_popup(frame, format!("{}", err));
 					self.err = None;
 				} else {
 					Self::render_popup(frame, String::from("something wrong happened"));
 				}
 			},
 			_ => self.render_bindings(frame, bindings),
-		}
+		};
+
+		Ok(())
 	}
 
 	fn render_help(&self, frame: &mut Frame) {
