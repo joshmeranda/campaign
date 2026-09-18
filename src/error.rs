@@ -1,48 +1,52 @@
 use std::error::Error;
-use std::num::ParseIntError;
-use std::fmt;
+use std::fmt::{Display, Formatter, Result};
+use std::io::Error as ioError;
+use core::num::ParseIntError;
 
 #[derive(Debug)]
-pub struct AppError {
-	s: String,
+pub enum AppError {
+	Error(String),
+
+	Io(ioError),
+
+	InvalidInt(ParseIntError),
+
+	Yaml(serde_yaml::Error),
 }
 
 impl Error for AppError {}
 
 impl From<String> for AppError {
 	fn from(s: String) -> AppError {
-		AppError {
-			s: s,
-		 }
+		AppError::Error(s)
 	}
 }
 
-impl From<std::io::Error> for AppError{
-	fn from(value: std::io::Error) -> AppError {
-		AppError{ s:
-			value.to_string()
-		}
+impl From<ioError> for AppError{
+	fn from(value: ioError) -> AppError {
+		AppError::Io(value)
 	}
 }
 
 impl From<ParseIntError> for AppError {
 	fn from(value: ParseIntError) -> AppError {
-		AppError{ s:
-			value.to_string()
-		}
+		AppError::InvalidInt(value)
 	}
 }
 
 impl From<serde_yaml::Error> for AppError{
 	fn from(value: serde_yaml::Error) -> AppError {
-		AppError{ s:
-			value.to_string()
-		}
+		AppError::Yaml(value)
 	}
 }
 
-impl fmt::Display for AppError {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", self.s)
+impl Display for AppError {
+	fn fmt(&self, f: &mut Formatter) -> Result {
+		match self {
+			AppError::Error(s) => write!(f, "Encountered error: {}", s),
+			AppError::Io(err) => write!(f, "{}", err),
+			AppError::InvalidInt(err) => write!(f, "{}", err),
+			AppError::Yaml(err) => write!(f, "{}", err),
+		}
 	}
 }
