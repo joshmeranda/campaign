@@ -448,34 +448,43 @@ impl App {
 		let percent_lost = self.status.damage as f32 / self.character.max_hp as f32;
 		let health_color = color_for_damage_percent_lost(percent_lost);
 
-		frame.render_widget(Self::default_block(), area);
+		frame.render_widget(
+			Self::default_block().title(format!(" {} ", self.character.name)),
+			area,
+		);
 
 		let [
-			name,
+			temp_health,
 			health
-		] = area.layout(
+		] = area.centered(Length(36), Length(6)).layout(
 			&Layout::vertical([
-				Length(3),
 				Length(1),
-			]).flex(layout::Flex::Center),
+				Length(1),
+			]).flex(layout::Flex::SpaceEvenly),
 		);
-	
-		frame.render_widget(
-			Paragraph::new(Line::from(self.character.name.clone().bold()))
-				.alignment(Alignment::Center),
-				// .block(Block::new().borders(Borders::LEFT| Borders::RIGHT | Borders::TOP)),
-			name);
 
-		let [health_bar] = health.layout(
-			&Layout::horizontal([Length(36)]).flex(layout::Flex::Center),
+		// todo: does not work well when temp_hp > 26 where the additional "+" exceeds the length constraint
+		let temp_health_str = if self.status.temp_hp > 17 {
+			format!(
+				"{} +{}",
+				(0..17).map(|_| "█").collect::<Vec<&str>>().join(" "),
+				self.status.temp_hp - 17,
+			)
+		} else {
+			(0..self.status.temp_hp).map(|_| "█").collect::<Vec<&str>>().join(" ")
+		};
+
+		frame.render_widget(
+			Paragraph::new(temp_health_str.light_blue()),
+			temp_health,
 		);
-		
+
 		frame.render_widget(
 			Gauge::default()
 					.percent(100 - (percent_lost * 100.0) as u16)
 				// .block(Block::new().borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM))
 				.gauge_style(health_color),
-			health_bar,
+			health.centered(Length(36), Length(1)),
 		);
 	}
 
@@ -565,6 +574,7 @@ impl App {
 		}
 	}
 
+	// todo: we should hide rage if character does not have the ability to rage and spell slots if user cannot cast spells
 	fn render_class_abilities(&self, frame: &mut Frame, area: Rect) {
 		let [
 			rages,
