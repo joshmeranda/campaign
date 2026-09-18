@@ -575,14 +575,14 @@ impl App {
 	}
 
 	// todo: we should hide rage if character does not have the ability to rage and spell slots if user cannot cast spells
-	fn render_class_abilities(&self, frame: &mut Frame, area: Rect) {
+	fn render_class_abilities(&self, frame: &mut Frame, area: Rect, has_rage: bool, has_magic: bool) {
 		let [
 			rages,
 			spell_slots,
 		] = area.layout(
 			&Layout::vertical([
-				Length(3),
-				Length(16),
+				Length(if has_rage { 3 } else { 0 }),
+				Length(if has_magic { 16 } else { 0 }),
 			]).spacing(1),
 		);
 
@@ -854,6 +854,18 @@ impl App {
 			],
 		).spacing(1));
 
+		let has_rage = self.character.rages > 0;
+		let has_magic = self.character.spell_slots.iter().sum::<u8>() > 0;
+		let mut class_length = 0;
+
+		if has_rage {
+			class_length += 3;
+		}
+
+		if has_magic {
+			class_length += 12;
+		}
+
 		let [
 			left_top,
 			left_upper_middle,
@@ -862,16 +874,16 @@ impl App {
 		] = left.layout(
 			&Layout::vertical([
 				Length(23),
-				Length(15),
+				Length(class_length),
 				Length(3),
 				Fill(1)
 			],
-		).spacing(1));
+		).spacing(1).flex(layout::Flex::SpaceEvenly));
 
 		self.render_header(frame, header);
 
 		self.render_abilities(frame, left_top);
-		self.render_class_abilities(frame, left_upper_middle);
+		self.render_class_abilities(frame, left_upper_middle, has_rage, has_magic);
 		self.render_coins(frame, left_lower_middle);
 		self.render_proficiencies(frame, left_bottom);
 
