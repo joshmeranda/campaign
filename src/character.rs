@@ -171,7 +171,7 @@ impl App {
 					event::read()?; // we don't care about the actual key-press here
 					self.mode = AppMode::Idle;
 				},
-				AppMode::Exitting => {},
+				AppMode::Exitting => terminal.clear()?,
 			};
 
 			if self.state_updated {
