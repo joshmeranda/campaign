@@ -500,8 +500,8 @@ impl App {
 
 		let data = [
 			(" lvl ", self.character.level.to_string()),
-			(" race ", String::from(self.character.race.to_str())),
-			(" class ", String::from(self.character.class.to_str())),
+			(" race ", self.character.race.clone()),
+			(" class ", self.character.class.clone()),
 			(" sub-class ", self.character.sub_class.clone()),
 			(" luck ", self.status.luck.to_string()),
 			(" AC ", self.character.armor_class.to_string()),

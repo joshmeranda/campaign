@@ -18,84 +18,10 @@ pub struct Ability {
 }
 
 #[derive(Serialize, Deserialize)]
-pub enum Class {
-	Artificer,
-	Barbarian,
-	Bard,
-	Cleric,
-	Druid,
-	Fighter,
-	Monk,
-	Paladin,
-	Ranger,
-	Rogue,
-	Sorcerer,
-	Warlock,
-	Wizard,
-
-	Other(String),
-}
-
-impl Class {
-	pub fn to_str(&self) -> &'static str {
-		match self {
-			Class::Artificer => "Artificer",
-			Class::Barbarian => "Barbarian",
-			Class::Bard => "Bard",
-			Class::Cleric => "Clearic",
-			Class::Druid => "Druid",
-			Class::Fighter => "Fighter",
-			Class::Monk => "Monk",
-			Class::Paladin => "Paladin",
-			Class::Ranger => "Ranger",
-			Class::Rogue => "Rogue",
-			Class::Sorcerer => "Sorcerer",
-			Class::Warlock => "Warlock",
-			Class::Wizard => "Wizard",
-			Class::Other(_) => todo!("Other classes not yet supported")
-		}
-	}
-}
-
-#[derive(Serialize, Deserialize)]
-pub enum Race {
-	Aasimar,
-	Dragonborn,
-	Dwarf,
-	Elf,
-	Gnome,
-	Goliath,
-	Halfling,
-	Human,
-	Orc,
-	Tiefling,
-
-	Other(String),
-}
-
-impl Race {
-	pub fn to_str(&self) -> &'static str {
-		match self {
-			Race::Aasimar => "Aasimar",
-			Race::Dragonborn => "Dragonborn",
-			Race::Dwarf => "Dwarf",
-			Race::Elf => "Elf",
-			Race::Gnome => "Gnome",
-			Race::Goliath => "Goliath",
-			Race::Halfling => "Halfling",
-			Race::Human => "Human",
-			Race::Orc => "Orc",
-			Race::Tiefling => "Tielfling",
-			Race::Other(_) => todo!(),
-		}
-	}
-}
-
-#[derive(Serialize, Deserialize)]
 pub struct Character {
 	pub name: String,
-	pub class: Class,
-	pub race: Race,
+	pub class: String,
+	pub race: String,
 	pub sub_class: String,
 	pub level: u8, // proficiency is tied to level
 	pub armor_class: u8,
