@@ -7,7 +7,6 @@ pub struct Spell {
 	pub description: String,
 }
 
-// todo: this currently only supports proficiencies known at build time
 pub type Proficiency = (String, bool);
 
 #[derive(Serialize, Deserialize)]
@@ -35,6 +34,103 @@ pub struct Character {
 	pub proficiencies: Vec<String>,
 }
 
+impl Default for Character {
+	fn default() -> Character {
+		Character{
+			name: String::new(),
+			class: String::new(),
+			race: String::new(),
+			sub_class: String::new(),
+			level: 0,
+			armor_class: 0,
+			max_hp: 0,
+			speed: 0,
+			abilities: [
+				Ability{
+					name: String::from("strength"),
+					score: 0,
+					proficiencies: [
+						(String::from("athletics"), false),
+						(String::new(), false),
+						(String::new(), false),
+						(String::new(), false),
+						(String::new(), false),
+					],
+				},
+				Ability{
+					name: String::from("dexterity"),
+					score: 0,
+					proficiencies: [
+						(String::new(), false),
+						(String::new(), false),
+						(String::new(), false),
+						(String::new(), false),
+						(String::new(), false),
+					],
+				},
+				Ability{
+					name: String::from("constitution"),
+					score: 0,
+					proficiencies: [
+						(String::new(), false),
+						(String::new(), false),
+						(String::new(), false),
+						(String::new(), false),
+						(String::new(), false),
+					],
+				},
+				Ability{
+					name: String::from("intelligence"),
+					score: 0,
+					proficiencies: [
+						(String::from("arcana"), false),
+						(String::from("history"), false),
+						(String::from("investigation"), false),
+						(String::from("nature"), false),
+						(String::from("religion"), false),
+					],
+				},
+				Ability{
+					name: String::from("wisdom"),
+					score: 0,
+					proficiencies: [
+						(String::from("animal handling"), false),
+						(String::from("insight"), false),
+						(String::from("medicine"), false),
+						(String::from("perception"), false),
+						(String::from("survival"), false),
+					],
+				},
+				Ability{
+					name: String::from("charisma"),
+					score: 0,
+					proficiencies: [
+						(String::from("deception"), false),
+						(String::from("intimidation"), false),
+						(String::from("performance"), false),
+						(String::from("persuasion"), false),
+						(String::new(), false),
+					],
+				},
+			],
+			spell_slots: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+			spells: vec![],
+			rages: 0,
+			languages: vec![],
+			proficiencies: vec![],
+		}
+	}
+}
+
+impl Character {
+	pub fn with_name(name: String) -> Character {
+		Character{
+			name,
+			..Character::default()
+		}
+	}
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Item {
 	pub name: String,
@@ -42,7 +138,7 @@ pub struct Item {
 	pub description: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct Status{
 	pub damage: u8,
 	pub temp_hp: u8,

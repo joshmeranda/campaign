@@ -183,7 +183,7 @@ impl App {
 
 			if self.state_updated {
 				let s = serde_yaml::to_string(&self.status)?;
-				fs::write(self.status_path.clone(), s)?;
+				fs::write(&self.status_path, s)?;
 			}
 		}
 
@@ -581,7 +581,6 @@ impl App {
 		}
 	}
 
-	// todo: we should hide rage if character does not have the ability to rage and spell slots if user cannot cast spells
 	fn render_class_abilities(&self, frame: &mut Frame, area: Rect, has_rage: bool, has_magic: bool) {
 		let [
 			rages,
@@ -652,7 +651,6 @@ impl App {
 	}
 
 	fn render_proficiencies(&self, frame: &mut Frame, area: Rect) {
-		// todo: should support scroll bar
 		let lines: Vec<Line<'_>> = self.character.proficiencies.iter().map(|s| Line::from(s.clone())).collect();
 		let text = Text::from(lines);
 	
@@ -661,7 +659,6 @@ impl App {
 
 	fn render_items(&mut self, frame: &mut Frame, area: Rect) {
 		// todo: should support scroll bar
-
 		let header = Row::new(["name", "count", "description"])
 			.style(Style::default().bg(Self::BLOCK_COLOR))
 			.bold();
