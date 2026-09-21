@@ -44,12 +44,22 @@ struct Cli {
 	command: MainSubcommand,
 }
 
-
 fn do_character(character_sub_command: CharacterSubCommand) -> Result<(), AppError> {
 	match character_sub_command {
 		CharacterSubCommand::New { name } => {
 			let dir = PathBuf::from(&name);
 			fs::create_dir(&dir)?;
+
+			let notes_file = dir.join("notes.txt");
+			fs::write(notes_file, format!("# {}
+Thanks for using Campaign!
+
+As you are creating you character be sure to flesh out the following characterisitics for your character:
+- age:
+- appearence:
+- history:
+- motivations:
+", &name))?;
 
 			let character_file = dir.join("character.yaml");
 			let data = serde_yaml::to_string(&Character::with_name(name))?;
@@ -58,9 +68,6 @@ fn do_character(character_sub_command: CharacterSubCommand) -> Result<(), AppErr
 			let status_file = dir.join("status.yaml");
 			let data = serde_yaml::to_string(&Status::default())?;
 			fs::write(status_file, data)?;
-
-			let notes_file = dir.join("notes.txt");
-			fs::write(notes_file, "")?;
 		},
 		CharacterSubCommand::View { dir } => {
 			let character_path = dir.join(CHARACTER_FILENAME);
