@@ -540,19 +540,20 @@ impl App {
 
 	fn render_ability(&self, frame: &mut Frame, area: Rect, ability: &Ability) {
 		let modifier: i16 = ((ability.score as i16) - 10) / 2;
-		let mut lines = Vec::with_capacity(ability.proficiencies.len());
 
-		for ability in &ability.proficiencies {
-			if ability.0.is_empty()  {
-				continue
-			}
+		// the most amount of proficiencies for an ability if 5
+		let mut lines = Vec::with_capacity(5);
 
-			if ability.1 {
-				lines.push(Line::from(Span::styled(ability.0.clone(), Style::default().bg(Color::White).black())));
-			} else {
-				lines.push(Line::from(Span::styled(ability.0.clone(), Style::default())));
+		ability.name.proficiencies()
+			.into_iter()
+			.for_each(|p| {
+				if ability.proficiencies.contains(&p) {
+					lines.push(Line::from(Span::styled(p.clone(), Style::default().bg(Color::White).black())));
+				} else {
+					lines.push(Line::from(Span::styled(p.clone(), Style::default())));
+				}
 			}
-		}
+		);
 
 		let text = Text::from(lines);
 

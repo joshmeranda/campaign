@@ -1,5 +1,15 @@
 use serde::{Serialize, Deserialize};
 
+macro_rules! proficiencies {
+	($($iter:expr),* $(,)?) => {
+		[
+			$(
+				$iter
+			), *
+		].iter().map(|s| String::from(*s)).collect()
+	}
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Spell {
 	pub name: String,
@@ -7,13 +17,58 @@ pub struct Spell {
 	pub description: String,
 }
 
-pub type Proficiency = (String, bool);
+#[derive(Serialize, Deserialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum AbilityKind {
+	Strength,
+	Dexterity,
+	Constitution,
+	Intelligence,
+	Wisdom,
+	Charisma,
+}
+
+impl AbilityKind {
+	pub fn proficiencies(&self) -> Vec<String> {
+		match self {
+			AbilityKind::Strength => proficiencies!("athletics"),
+			AbilityKind::Dexterity => proficiencies!(""),
+			AbilityKind::Constitution => proficiencies!(""),
+			AbilityKind::Intelligence => proficiencies!("arcana", "history", "investigation", "nature", "religion"),
+			AbilityKind::Wisdom => proficiencies!("animal handling", "insight", "medicine", "perception", "survival"),
+			AbilityKind::Charisma => proficiencies!("deception", "intimidation", "performance", "persuassion"),
+		}
+	}
+}
+
+impl std::fmt::Display for AbilityKind {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		match self {
+			AbilityKind::Strength => write!(f, "strength"),
+			AbilityKind::Dexterity => write!(f, "dexterity"),
+			AbilityKind::Constitution => write!(f, "constitution"),
+			AbilityKind::Intelligence => write!(f, "intelligence"),
+			AbilityKind::Wisdom => write!(f, "wisdom"),
+			AbilityKind::Charisma => write!(f, "charisma"),
+		}
+	}
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct Ability {
-	pub name: String,
+	pub name: AbilityKind,
 	pub score: u8,
-	pub proficiencies: [Proficiency; 5],
+	pub proficiencies: Vec<String>,
+}
+
+impl Ability {
+	fn default_for_kind(k: AbilityKind) -> Ability {
+		Ability {
+			name: k,
+			score: 0,
+			proficiencies: k.proficiencies(),
+		}
+	}
 }
 
 #[derive(Serialize, Deserialize)]
@@ -46,72 +101,12 @@ impl Default for Character {
 			max_hp: 0,
 			speed: 0,
 			abilities: [
-				Ability{
-					name: String::from("strength"),
-					score: 0,
-					proficiencies: [
-						(String::from("athletics"), false),
-						(String::new(), false),
-						(String::new(), false),
-						(String::new(), false),
-						(String::new(), false),
-					],
-				},
-				Ability{
-					name: String::from("dexterity"),
-					score: 0,
-					proficiencies: [
-						(String::new(), false),
-						(String::new(), false),
-						(String::new(), false),
-						(String::new(), false),
-						(String::new(), false),
-					],
-				},
-				Ability{
-					name: String::from("constitution"),
-					score: 0,
-					proficiencies: [
-						(String::new(), false),
-						(String::new(), false),
-						(String::new(), false),
-						(String::new(), false),
-						(String::new(), false),
-					],
-				},
-				Ability{
-					name: String::from("intelligence"),
-					score: 0,
-					proficiencies: [
-						(String::from("arcana"), false),
-						(String::from("history"), false),
-						(String::from("investigation"), false),
-						(String::from("nature"), false),
-						(String::from("religion"), false),
-					],
-				},
-				Ability{
-					name: String::from("wisdom"),
-					score: 0,
-					proficiencies: [
-						(String::from("animal handling"), false),
-						(String::from("insight"), false),
-						(String::from("medicine"), false),
-						(String::from("perception"), false),
-						(String::from("survival"), false),
-					],
-				},
-				Ability{
-					name: String::from("charisma"),
-					score: 0,
-					proficiencies: [
-						(String::from("deception"), false),
-						(String::from("intimidation"), false),
-						(String::from("performance"), false),
-						(String::from("persuasion"), false),
-						(String::new(), false),
-					],
-				},
+				Ability::default_for_kind(AbilityKind::Strength),
+				Ability::default_for_kind(AbilityKind::Dexterity),
+				Ability::default_for_kind(AbilityKind::Constitution),
+				Ability::default_for_kind(AbilityKind::Intelligence),
+				Ability::default_for_kind(AbilityKind::Wisdom),
+				Ability::default_for_kind(AbilityKind::Charisma),
 			],
 			spell_slots: [0, 0, 0, 0, 0, 0, 0, 0, 0],
 			spells: vec![],
