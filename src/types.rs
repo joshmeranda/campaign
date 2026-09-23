@@ -156,9 +156,8 @@ pub struct Status {
     pub coins: [usize; 5],
     pub items: Vec<Item>,
 
-    pub is_in_death_saving: bool,
-    // (succeed, failed)
-    pub death_saving_throws: (u8, u8),
+    // None when not making death saving throws, Some((succeeded, failed)) while doing so
+    pub death_saves: Option<(u8, u8)>,
 }
 
 impl Status {
@@ -185,25 +184,27 @@ impl Status {
         self.used_rages += 1
     }
 
+    pub fn is_in_death_saving(&self) -> bool {
+        self.death_saves.is_some()
+    }
+
     pub fn enter_death_saving(&mut self) {
-        self.is_in_death_saving = true;
-        self.death_saving_throws = (0, 0);
+        self.death_saves = Some((0, 0));
     }
 
     pub fn exit_death_saving(&mut self) {
-        self.is_in_death_saving = false;
-        self.death_saving_throws = (0, 0);
+        self.death_saves = None;
     }
 
     pub fn death_saving_throw(&mut self, succeeded: bool) {
-        if !self.is_in_death_saving {
-            return
-        }
+        let Some((succeeded_count, failed_count)) = &mut self.death_saves else {
+            return;
+        };
 
-        if succeeded && self.death_saving_throws.1 < 3{
-            self.death_saving_throws.0 = (self.death_saving_throws.0 + 1).min(3);
-        } else if self.death_saving_throws.0 < 3 {
-            self.death_saving_throws.1 = (self.death_saving_throws.1 + 1).min(3);
+        if succeeded && *failed_count < 3 {
+            *succeeded_count = (*succeeded_count + 1).min(3);
+        } else if *succeeded_count < 3 {
+            *failed_count = (*failed_count + 1).min(3);
         }
     }
 }

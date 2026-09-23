@@ -124,7 +124,7 @@ impl App {
             status_path,
             notes_path,
 
-            mode: if s.is_in_death_saving { AppMode::DeathSavingThrows } else { AppMode::default() },
+            mode: if s.is_in_death_saving() { AppMode::DeathSavingThrows } else { AppMode::default() },
 
             input: String::new(),
             head: 0,
@@ -881,15 +881,17 @@ impl App {
         let area = frame.area();
         let area = area.centered(Length(70), Percentage(10));
 
-        let (content, color) = if self.status.death_saving_throws.0 == 3 {
+        let (succeeded, failed) = self.status.death_saves.unwrap_or_default();
+
+        let (content, color) = if succeeded == 3 {
             (Text::from("muy bueno amigo"), GREEN.c900)
-        } else if self.status.death_saving_throws.1 == 3 {
+        } else if failed == 3 {
             (Text::from("das ist nicht gut"), RED.c900)
         } else {
             (
                 Text::from(vec![
-                    Line::from((0..self.status.death_saving_throws.0).map(|_| "✔").collect::<Vec<&str>>().join(" ")).green(),
-                    Line::from((0..self.status.death_saving_throws.1).map(|_| "❌").collect::<Vec<&str>>().join(" ")).red(),
+                    Line::from((0..succeeded).map(|_| "✔").collect::<Vec<&str>>().join(" ")).green(),
+                    Line::from((0..failed).map(|_| "❌").collect::<Vec<&str>>().join(" ")).red(),
                 ]),
                 YELLOW.c900,
             )
