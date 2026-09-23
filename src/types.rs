@@ -1,3 +1,5 @@
+use std::iter::Successors;
+
 use serde::{Deserialize, Serialize};
 
 macro_rules! proficiencies {
@@ -152,8 +154,13 @@ pub struct Status {
 
     pub luck: u8,
 
-    pub coins: [usize; 5], // platinum gold electrum silver copper
+    // platinum gold electrum silver copper
+    pub coins: [usize; 5],
     pub items: Vec<Item>,
+
+    pub is_in_death_saving: bool,
+    // (succeed, failed)
+    pub death_saving_throws: (u8, u8),
 }
 
 impl Status {
@@ -178,6 +185,24 @@ impl Status {
 
     pub fn rage(&mut self) {
         self.used_rages += 1
+    }
+
+    pub fn enter_death_saving(&mut self) {
+        self.is_in_death_saving = true;
+        self.death_saving_throws = (0, 0);
+    }
+
+    pub fn exit_death_saving(&mut self) {
+        self.is_in_death_saving = false;
+        self.death_saving_throws = (0, 0);
+    }
+
+    pub fn death_saving_throw(&mut self, succeeded: bool) {
+        if succeeded {
+            self.death_saving_throws.0 = (self.death_saving_throws.0 + 1).min(31);
+        } else {
+            self.death_saving_throws.1 = (self.death_saving_throws.1 + 1).min(31);
+        }
     }
 }
 
@@ -208,6 +233,7 @@ mod test_status {
                     luck: 0,
                     coins: [0, 0, 0, 0, 0],
                     items: vec![],
+                    death_saving: (0, 0),
                 },
                 damage: 10,
                 expected: 10,
@@ -223,6 +249,7 @@ mod test_status {
                     luck: 0,
                     coins: [0, 0, 0, 0, 0],
                     items: vec![],
+                    death_saving: (0, 0),
                 },
                 damage: 10,
                 expected: 5,
@@ -238,6 +265,7 @@ mod test_status {
                     luck: 0,
                     coins: [0, 0, 0, 0, 0],
                     items: vec![],
+                    death_saving: (0, 0),
                 },
                 damage: 10,
                 expected: 20,
@@ -253,6 +281,7 @@ mod test_status {
                     luck: 0,
                     coins: [0, 0, 0, 0, 0],
                     items: vec![],
+                    death_saving: (0, 0),
                 },
                 damage: 10,
                 expected: 15,
@@ -268,6 +297,7 @@ mod test_status {
                     luck: 0,
                     coins: [0, 0, 0, 0, 0],
                     items: vec![],
+                    death_saving: (0, 0),
                 },
                 damage: 1,
                 expected: 10,
@@ -306,6 +336,7 @@ mod test_status {
                     luck: 0,
                     coins: [0, 0, 0, 0, 0],
                     items: vec![],
+                    death_saving: (0, 0),
                 },
                 heal: 10,
                 expected: 0,
@@ -320,6 +351,7 @@ mod test_status {
                     luck: 0,
                     coins: [0, 0, 0, 0, 0],
                     items: vec![],
+                    death_saving: (0, 0),
                 },
                 heal: 10,
                 expected: 0,
@@ -334,6 +366,7 @@ mod test_status {
                     luck: 0,
                     coins: [0, 0, 0, 0, 0],
                     items: vec![],
+                    death_saving: (0, 0),
                 },
                 heal: 10,
                 expected: 5,

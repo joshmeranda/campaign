@@ -71,6 +71,8 @@ enum AppMode {
     Idle,
     Input(InputType),
 
+    DeathSavingThrows,
+
     EditSelection,
     Editing,
 
@@ -83,6 +85,9 @@ impl Default for AppMode {
         Self::Idle
     }
 }
+
+// todo: damage and healing is broken
+// todo: replace dumb state_update with smarter strategy (dump when editting and exitinng for examplre)
 
 pub struct App {
     character_path: std::path::PathBuf,
@@ -124,7 +129,7 @@ impl App {
             status_path,
             notes_path,
 
-            mode: AppMode::default(),
+            mode: if s.is_in_death_saving { AppMode::DeathSavingThrows } else { AppMode::default() },
 
             input: String::new(),
             head: 0,
@@ -162,6 +167,7 @@ impl App {
             match self.mode {
                 AppMode::Idle => self.handle_events()?,
                 AppMode::Input(_) => self.handle_input_events()?,
+                AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
                 AppMode::EditSelection => self.handle_edit_select_events()?,
                 AppMode::Editing => {
                     if let Err(err) = self.edit_file() {
@@ -241,7 +247,13 @@ impl App {
                         self.mode = AppMode::Exiting
                     }
                 }
-                KeyCode::Char('d') => self.mode = AppMode::Input(InputType::Damage),
+                KeyCode::Char('d') => {
+                    self.mode = AppMode::Input(InputType::Damage);
+
+                    if self.character.max_hp.saturating_sub(self.status.damage) == 0 {
+                        self.status.enter_death_saving();
+                    }
+                },
                 KeyCode::Char('h') => self.mode = AppMode::Input(InputType::Heal),
                 KeyCode::Char('r') => {
                     if self.status.used_rages == self.character.rages {
@@ -355,6 +367,10 @@ impl App {
                 InputType::Damage => {
                     self.status.damage(self.input.parse::<u8>()?);
                     self.state_updated = true;
+
+                    if self.character.max_hp.saturating_sub(self.status.damage) == 0 {
+                        self.mode = AppMode::DeathSavingThrows;
+                    }
                 }
                 InputType::Heal => {
                     self.status.heal(self.input.parse::<u8>()?);
@@ -402,8 +418,30 @@ impl App {
         Ok(())
     }
 
-    const BLOCK_COLOR: Color = SLATE.c800;
+    fn handle_death_saving_events(&mut self) -> Result<(), AppError> {
+        if let Some(key) = event::read()?.as_key_press_event() {
+            match key.code {
+                KeyCode::Char('s') => {
+                    self.status.death_saving_throw(true);
+                    self.state_updated = true;
+                },
+                KeyCode::Char('f') => {
+                    self.status.death_saving_throw(false);
+                    self.state_updated = true;
+                },
+                KeyCode::Char('u') => {
+                    self.mode = AppMode::Idle;
+                    self.status.exit_death_saving();
+                    self.state_updated = true;
+                },
+                _ => {}
+            }
+        }
 
+        Ok(())
+    }
+
+    const BLOCK_COLOR: Color = SLATE.c800;
     const TAB_COLOR: Color = SLATE.c700;
 
     fn default_block() -> Block<'static> {
@@ -447,7 +485,7 @@ impl App {
                 .block(
                     Self::default_block()
                         .title(" What do you want to edit? ")
-                        .title_bottom(" press ESC to quit "),
+                        .title_bottom(" press ESC to cancel "),
                 )
                 .highlight_style(Modifier::REVERSED)
                 .highlight_symbol("> "),
@@ -487,7 +525,7 @@ impl App {
 
         frame.render_widget(
             Gauge::default()
-                .percent(100 - (percent_lost * 100.0) as u16)
+                .percent(100u16.saturating_sub((percent_lost * 100.0) as u16))
                 // .block(Block::new().borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM))
                 .gauge_style(health_color),
             health.centered(Length(36), Length(1)),
@@ -841,6 +879,57 @@ impl App {
         frame.set_cursor_position(Position::new(input.x + (self.head as u16), input.y));
     }
 
+    fn render_death_saving(&self, frame: &mut Frame) {
+        // todo: handle death and life
+        let area = frame.area();
+        let area = area.centered(Percentage(20), Percentage(10));
+
+        let content = Text::from(vec![
+            Line::from((0..self.status.death_saving_throws.0).map(|_| "✔").collect::<Vec<&str>>().join(" ")).green(),
+            Line::from((0..self.status.death_saving_throws.1).map(|_| "❌").collect::<Vec<&str>>().join(" ")).red(),
+        ]);
+
+        let bottom_text = Line::from(
+            vec![
+                " ".into(),
+
+                Span::styled("s", Style::default())
+                    .black()
+                    .bg(Color::White),
+                " ".into(),
+                "succeed".into(),
+
+                " ".into(),
+                Span::styled("f", Style::default())
+                    .black()
+                    .bg(Color::White),
+                " ".into(),
+                "fail".into(),
+
+                " ".into(),
+                Span::styled("u", Style::default())
+                    .black()
+                    .bg(Color::White),
+                " ".into(),
+                "bring up".into(),
+
+                " ".into(),
+            ],
+        );
+
+        frame.render_widget(Clear, area);
+
+        frame.render_widget(
+            Paragraph::new(content).alignment(Alignment::Center).block(
+                Self::default_block()
+                    .bg(RED.c900)
+                    .title(" Uh oh, looks like someone is in death saving throws... ")
+                    .title_bottom(bottom_text),
+            ),
+            area.centered_horizontally(Fill(1)).centered_vertically(Fill(1)),
+        );
+    }
+
     fn render(&mut self, frame: &mut Frame) -> Result<(), AppError> {
         let area = frame.area();
 
@@ -881,6 +970,10 @@ impl App {
 
         match self.mode {
             AppMode::Input(t) => self.render_input(frame, bindings, t),
+            AppMode::DeathSavingThrows => {
+                self.render_bindings(frame, area);
+                self.render_death_saving(frame);
+            },
             AppMode::EditSelection => {
                 self.render_bindings(frame, bindings);
                 self.render_edit_list(frame)
