@@ -86,9 +86,6 @@ impl Default for AppMode {
     }
 }
 
-// todo: damage and healing is broken
-// todo: replace dumb state_update with smarter strategy (dump when editting and exitinng for examplre)
-
 pub struct App {
     character_path: std::path::PathBuf,
     status_path: std::path::PathBuf,
@@ -377,7 +374,7 @@ impl App {
         match self.mode {
             AppMode::Input(t) => match t {
                 InputType::Damage => {
-                    self.status.damage(self.input.parse::<u8>()?);
+                    self.status.damage(self.input.parse::<u8>()?, self.character.max_hp);
 
                     if self.character.max_hp.saturating_sub(self.status.damage) == 0 {
                         self.status.enter_death_saving();

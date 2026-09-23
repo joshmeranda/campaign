@@ -1,5 +1,3 @@
-use std::iter::Successors;
-
 use serde::{Deserialize, Serialize};
 
 macro_rules! proficiencies {
@@ -164,12 +162,12 @@ pub struct Status {
 }
 
 impl Status {
-    pub fn damage(&mut self, damage: u8) {
+    pub fn damage(&mut self, damage: u8, max: u8) {
         let absorbed = self.temp_hp.min(damage);
         let actual_damage = damage.saturating_sub(absorbed);
 
         self.temp_hp -= absorbed;
-        self.damage = self.damage.saturating_add(actual_damage)
+        self.damage = self.damage.saturating_add(actual_damage).min(max)
     }
 
     pub fn heal(&mut self, heal: u8) {
@@ -198,6 +196,10 @@ impl Status {
     }
 
     pub fn death_saving_throw(&mut self, succeeded: bool) {
+        if !self.is_in_death_saving {
+            return
+        }
+
         if succeeded {
             self.death_saving_throws.0 = (self.death_saving_throws.0 + 1).min(31);
         } else {
@@ -209,6 +211,20 @@ impl Status {
 #[cfg(test)]
 mod test_status {
     use super::*;
+
+    fn with_damage(s: Status, damage: u8) -> Status {
+        Status{
+            damage,
+            ..s
+        }
+    }
+
+    fn with_tmp_hp(s: Status, temp_hp: u8) -> Status {
+        Status{
+            temp_hp,
+            ..s
+        }
+    }
 
     #[test]
     fn test_damage() {
@@ -225,89 +241,51 @@ mod test_status {
         let cases = vec![
             Test {
                 title: "with full hp",
-                status: Status {
-                    damage: 0,
-                    temp_hp: 0,
-                    used_slots: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    used_rages: 0,
-                    luck: 0,
-                    coins: [0, 0, 0, 0, 0],
-                    items: vec![],
-                    death_saving: (0, 0),
-                },
+                status: Status::default(),
                 damage: 10,
                 expected: 10,
                 expected_temp: 0,
             },
             Test {
                 title: "with full hp and temp hp",
-                status: Status {
-                    damage: 0,
-                    temp_hp: 5,
-                    used_slots: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    used_rages: 0,
-                    luck: 0,
-                    coins: [0, 0, 0, 0, 0],
-                    items: vec![],
-                    death_saving: (0, 0),
-                },
+                status: with_tmp_hp(Status::default(), 5),
                 damage: 10,
                 expected: 5,
                 expected_temp: 0,
             },
             Test {
                 title: "with damage",
-                status: Status {
-                    damage: 10,
-                    temp_hp: 0,
-                    used_slots: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    used_rages: 0,
-                    luck: 0,
-                    coins: [0, 0, 0, 0, 0],
-                    items: vec![],
-                    death_saving: (0, 0),
-                },
+                status: with_damage(Status::default(), 10),
                 damage: 10,
                 expected: 20,
                 expected_temp: 0,
             },
             Test {
                 title: "with damage and temp_hp",
-                status: Status {
-                    damage: 10,
-                    temp_hp: 5,
-                    used_slots: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    used_rages: 0,
-                    luck: 0,
-                    coins: [0, 0, 0, 0, 0],
-                    items: vec![],
-                    death_saving: (0, 0),
-                },
+                status: with_tmp_hp(with_damage(Status::default(), 10), 5),
                 damage: 10,
                 expected: 15,
                 expected_temp: 0,
             },
             Test {
                 title: "small damage with damage and temp_hp",
-                status: Status {
-                    damage: 10,
-                    temp_hp: 5,
-                    used_slots: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    used_rages: 0,
-                    luck: 0,
-                    coins: [0, 0, 0, 0, 0],
-                    items: vec![],
-                    death_saving: (0, 0),
-                },
+                status: with_tmp_hp(with_damage(Status::default(), 10), 5),
                 damage: 1,
                 expected: 10,
                 expected_temp: 4,
+            },
+            Test {
+                title: "big damage",
+                status:Status::default(),
+                damage: u8::MAX,
+                expected: 100,
+                expected_temp: 0,
             },
         ];
 
         for c in cases {
             let mut status = c.status;
-            status.damage(c.damage);
+            status.damage(c.damage, 100);
 
             assert!(c.expected == status.damage, "{}", c.title);
             assert!(c.expected_temp == status.temp_hp, "{}", c.title);
@@ -328,46 +306,19 @@ mod test_status {
         let cases = vec![
             Test {
                 title: "with no damage",
-                status: Status {
-                    damage: 0,
-                    temp_hp: 0,
-                    used_slots: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    used_rages: 0,
-                    luck: 0,
-                    coins: [0, 0, 0, 0, 0],
-                    items: vec![],
-                    death_saving: (0, 0),
-                },
+                status: Status::default(),
                 heal: 10,
                 expected: 0,
             },
             Test {
                 title: "with less damage",
-                status: Status {
-                    damage: 5,
-                    temp_hp: 0,
-                    used_slots: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    used_rages: 0,
-                    luck: 0,
-                    coins: [0, 0, 0, 0, 0],
-                    items: vec![],
-                    death_saving: (0, 0),
-                },
+                status: with_damage(Status::default(), 5),
                 heal: 10,
                 expected: 0,
             },
             Test {
                 title: "with more damage",
-                status: Status {
-                    damage: 15,
-                    temp_hp: 0,
-                    used_slots: [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    used_rages: 0,
-                    luck: 0,
-                    coins: [0, 0, 0, 0, 0],
-                    items: vec![],
-                    death_saving: (0, 0),
-                },
+                status: with_damage(Status::default(), 15),
                 heal: 10,
                 expected: 5,
             },
