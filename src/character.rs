@@ -69,7 +69,6 @@ enum Tab {
 #[derive(PartialEq)]
 enum AppMode {
     Idle,
-    Help,
     Input(InputType),
 
     EditSelection,
@@ -154,18 +153,14 @@ impl App {
         self.spell_table_state.select_first_column();
 
         while self.mode != AppMode::Exiting {
-            terminal.draw(|frame| match self.mode {
-                AppMode::Help => self.render_help(frame),
-                _ => {
-                    if let Err(err) = self.render(frame) {
-                        self.set_err(err);
-                    }
+            terminal.draw(|frame| {
+                if let Err(err) = self.render(frame) {
+                    self.set_err(err);
                 }
             })?;
 
             match self.mode {
                 AppMode::Idle => self.handle_events()?,
-                AppMode::Help => self.handle_help_events()?,
                 AppMode::Input(_) => self.handle_input_events()?,
                 AppMode::EditSelection => self.handle_edit_select_events()?,
                 AppMode::Editing => {
@@ -258,7 +253,6 @@ impl App {
                 }
                 KeyCode::Char('e') => self.mode = AppMode::EditSelection,
                 KeyCode::Char('c') => self.mode = AppMode::Input(InputType::Cast),
-                KeyCode::Char('?') => self.mode = AppMode::Help,
 
                 KeyCode::Up => match self.active_tab {
                     Tab::Items => self.item_table_state.select_previous(),
@@ -302,17 +296,6 @@ impl App {
                     }
                 }
 
-                _ => {}
-            }
-        }
-
-        Ok(())
-    }
-
-    fn handle_help_events(&mut self) -> Result<(), AppError> {
-        if let Some(key) = event::read()?.as_key_press_event() {
-            match key.code {
-                KeyCode::Esc => self.mode = AppMode::Idle,
                 _ => {}
             }
         }
@@ -606,11 +589,7 @@ impl App {
             .spacing(1),
         );
 
-        let rage_count = if self.status.used_rages > self.character.rages {
-            0
-        } else {
-            self.character.rages - self.status.used_rages
-        };
+        let rage_count = u8::saturating_sub(self.character.rages, self.status.used_rages);
 
         frame.render_widget(
             Paragraph::new(rage_count.to_string())
@@ -816,14 +795,13 @@ impl App {
         Ok(())
     }
 
-    const SHORT_BINDINGS_LIST: [(&'static str, &'static str); 7] = [
+    const SHORT_BINDINGS_LIST: [(&'static str, &'static str); 6] = [
         ("q", "quit"),
         ("d", "take damage"),
         ("h", "heal"),
         ("r", "rage"),
         ("c", "cast spell"),
         ("e", "edit"),
-        ("?", "show help page"),
     ];
 
     fn render_bindings(&self, frame: &mut Frame, area: Rect) {
@@ -878,13 +856,14 @@ impl App {
         let mut class_length = 0;
 
         if has_rage {
-            class_length += 3;
+            class_length += 4;
         }
 
         if has_magic {
             class_length += 12;
         }
 
+        // todo: there is an empty bit of extra space between class abilities and coins
         let [left_top, left_upper_middle, left_lower_middle, left_bottom] = left.layout(
             &Layout::vertical([Length(23), Length(class_length), Length(3), Fill(1)])
                 .spacing(1)
@@ -919,19 +898,5 @@ impl App {
         };
 
         Ok(())
-    }
-
-    fn render_help(&self, frame: &mut Frame) {
-        let area = frame.area();
-
-        let mut lines = vec![];
-
-        lines.push("Basic keybindings");
-
-        frame.render_widget(Clear, area);
-        frame.render_widget(
-            Paragraph::new("help text").block(Self::default_block().title("Help")),
-            area,
-        );
     }
 }
