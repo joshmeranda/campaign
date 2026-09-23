@@ -200,9 +200,9 @@ impl Status {
             return
         }
 
-        if succeeded {
+        if succeeded && self.death_saving_throws.1 < 3{
             self.death_saving_throws.0 = (self.death_saving_throws.0 + 1).min(3);
-        } else {
+        } else if self.death_saving_throws.0 < 3 {
             self.death_saving_throws.1 = (self.death_saving_throws.1 + 1).min(3);
         }
     }

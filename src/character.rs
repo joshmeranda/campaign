@@ -2,7 +2,7 @@ use color_eyre::Result;
 use crossterm::event::{self, KeyCode};
 use ratatui::layout::Constraint::{Fill, Length, Percentage};
 use ratatui::layout::{Alignment, Layout, Margin, Offset, Position, Rect};
-use ratatui::style::palette::tailwind::{RED, SLATE};
+use ratatui::style::palette::tailwind::{RED, YELLOW, GREEN, SLATE};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{
@@ -878,14 +878,22 @@ impl App {
     }
 
     fn render_death_saving(&self, frame: &mut Frame) {
-        // todo: handle death and life
         let area = frame.area();
-        let area = area.centered(Percentage(20), Percentage(10));
+        let area = area.centered(Length(70), Percentage(10));
 
-        let content = Text::from(vec![
-            Line::from((0..self.status.death_saving_throws.0).map(|_| "✔").collect::<Vec<&str>>().join(" ")).green(),
-            Line::from((0..self.status.death_saving_throws.1).map(|_| "❌").collect::<Vec<&str>>().join(" ")).red(),
-        ]);
+        let (content, color) = if self.status.death_saving_throws.0 == 3 {
+            (Text::from("muy bueno amigo"), GREEN.c900)
+        } else if self.status.death_saving_throws.1 == 3 {
+            (Text::from("das ist nicht gut"), RED.c900)
+        } else {
+            (
+                Text::from(vec![
+                    Line::from((0..self.status.death_saving_throws.0).map(|_| "✔").collect::<Vec<&str>>().join(" ")).green(),
+                    Line::from((0..self.status.death_saving_throws.1).map(|_| "❌").collect::<Vec<&str>>().join(" ")).red(),
+                ]),
+                YELLOW.c900,
+            )
+        };
 
         let bottom_text = Line::from(
             vec![
@@ -920,7 +928,7 @@ impl App {
         frame.render_widget(
             Paragraph::new(content).alignment(Alignment::Center).block(
                 Self::default_block()
-                    .bg(RED.c900)
+                    .bg(color)
                     .title(" Uh oh, looks like someone is in death saving throws... ")
                     .title_bottom(bottom_text),
             ),
@@ -969,7 +977,7 @@ impl App {
         match self.mode {
             AppMode::Input(t) => self.render_input(frame, bindings, t),
             AppMode::DeathSavingThrows => {
-                self.render_bindings(frame, area);
+                self.render_bindings(frame, bindings);
                 self.render_death_saving(frame);
             },
             AppMode::EditSelection => {
