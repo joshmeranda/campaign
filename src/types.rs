@@ -152,7 +152,7 @@ pub struct Status {
 
     pub luck: u8,
 
-    pub coins: [u8; 5], // platinum gold electrum silver copper
+    pub coins: [usize; 5], // platinum gold electrum silver copper
     pub items: Vec<Item>,
 }
 
