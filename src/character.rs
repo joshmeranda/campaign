@@ -109,8 +109,6 @@ pub struct App {
 
     active_tab: Tab,
 
-    state_updated: bool,
-
     // todo: provide a way to de-dup errors to prevent locking the UI (like when notes file does not exist or could not be read)
     err: Option<AppError>,
 }
@@ -144,56 +142,59 @@ impl App {
 
             active_tab: Tab::Items,
 
-            state_updated: false,
-
             err: None,
         })
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> Result<(), AppError> {
-        self.item_table_state.select_first();
-        self.item_table_state.select_first_column();
+        let r = (|| {
+            self.item_table_state.select_first();
+            self.item_table_state.select_first_column();
 
-        self.spell_table_state.select_first();
-        self.spell_table_state.select_first_column();
+            self.spell_table_state.select_first();
+            self.spell_table_state.select_first_column();
 
-        while self.mode != AppMode::Exiting {
-            terminal.draw(|frame| {
-                if let Err(err) = self.render(frame) {
-                    self.set_err(err);
-                }
-            })?;
-
-            match self.mode {
-                AppMode::Idle => self.handle_events()?,
-                AppMode::Input(_) => self.handle_input_events()?,
-                AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
-                AppMode::EditSelection => self.handle_edit_select_events()?,
-                AppMode::Editing => {
-                    if let Err(err) = self.edit_file() {
+            while self.mode != AppMode::Exiting {
+                terminal.draw(|frame| {
+                    if let Err(err) = self.render(frame) {
                         self.set_err(err);
-                    } else {
-                        self.mode = AppMode::Idle;
                     }
+                })?;
 
-                    terminal.clear()?;
-                }
-                AppMode::Error => {
-                    _ = {
-                        event::read()?; // we don't care about the actual key-press here
-                        self.mode = AppMode::Idle;
+                match self.mode {
+                    AppMode::Idle => self.handle_events()?,
+                    AppMode::Input(_) => self.handle_input_events()?,
+                    AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
+                    AppMode::EditSelection => self.handle_edit_select_events()?,
+                    AppMode::Editing => {
+                        if let Err(err) = self.edit_file() {
+                            self.set_err(err);
+                        } else {
+                            self.mode = AppMode::Idle;
+                        }
+
+                        terminal.clear()?;
                     }
-                }
-                AppMode::Exiting => terminal.clear()?,
-            };
-
-            if self.state_updated {
-                let s = serde_yaml::to_string(&self.status)?;
-                fs::write(&self.status_path, s)?;
+                    AppMode::Error => {
+                        _ = {
+                            event::read()?; // we don't care about the actual key-press here
+                            self.mode = AppMode::Idle;
+                        }
+                    }
+                    AppMode::Exiting => terminal.clear()?,
+                };
             }
-        }
 
-        Ok(())
+            Ok(())
+        })();
+
+        let s = serde_yaml::to_string(&self.character)?;
+        fs::write(&self.character_path, s)?;
+
+        let s = serde_yaml::to_string(&self.status)?;
+        fs::write(&self.status_path, s)?;
+
+        r
     }
 
     fn load_from_path<P, T>(path: P) -> Result<T, AppError>
@@ -213,8 +214,18 @@ impl App {
         let selected = self.edit_select_list_state.selected().unwrap();
 
         let path = match selected {
-            0 => self.character_path.clone(),
-            1 => self.status_path.clone(),
+            0 => {
+                let s = serde_yaml::to_string(&self.character)?;
+                fs::write(&self.character_path, s)?;
+
+                self.character_path.clone()
+            },
+            1 => {
+                let s = serde_yaml::to_string(&self.status)?;
+                fs::write(&self.status_path, s)?;
+
+                self.status_path.clone()
+            },
             2 => self.notes_path.clone(),
             _ => panic!("selection should never be greate than 2"),
         };
@@ -260,7 +271,6 @@ impl App {
                         self.set_err(AppError::Error(String::from("You ran out of rages")))
                     } else {
                         self.status.rage();
-                        self.state_updated = true;
                     }
                 }
                 KeyCode::Char('e') => self.mode = AppMode::EditSelection,
@@ -331,7 +341,9 @@ impl App {
                 KeyCode::Enter => {
                     if let Err(err) = self.handle_input() {
                         self.set_err(err);
-                    } else {
+                    }
+
+                    if let AppMode::Input(_) = self.mode {
                         self.mode = AppMode::Idle;
                     }
 
@@ -366,16 +378,13 @@ impl App {
             AppMode::Input(t) => match t {
                 InputType::Damage => {
                     self.status.damage(self.input.parse::<u8>()?);
-                    self.state_updated = true;
 
                     if self.character.max_hp.saturating_sub(self.status.damage) == 0 {
+                        self.status.enter_death_saving();
                         self.mode = AppMode::DeathSavingThrows;
                     }
                 }
-                InputType::Heal => {
-                    self.status.heal(self.input.parse::<u8>()?);
-                    self.state_updated = true;
-                }
+                InputType::Heal => self.status.heal(self.input.parse::<u8>()?),
                 InputType::Cast => {
                     let slot = self.input.parse::<usize>()?;
 
@@ -387,14 +396,13 @@ impl App {
 
                     if self.character.spell_slots[slot - 1] - self.status.used_slots[slot - 1] > 0 {
                         self.status.cast(slot);
-                        self.state_updated = true;
                     } else {
                         return Err(AppError::from(String::from("not enough slots available")));
                     }
                 }
             },
             _ => panic!(
-                "bug: handle_input shuold only be called while App.mode == AppMode::Input(AppType)"
+                "bug: handle_input should only be called while App.mode == AppMode::Input(AppType)"
             ),
         };
 
@@ -421,18 +429,11 @@ impl App {
     fn handle_death_saving_events(&mut self) -> Result<(), AppError> {
         if let Some(key) = event::read()?.as_key_press_event() {
             match key.code {
-                KeyCode::Char('s') => {
-                    self.status.death_saving_throw(true);
-                    self.state_updated = true;
-                },
-                KeyCode::Char('f') => {
-                    self.status.death_saving_throw(false);
-                    self.state_updated = true;
-                },
+                KeyCode::Char('s') => self.status.death_saving_throw(true),
+                KeyCode::Char('f') => self.status.death_saving_throw(false),
                 KeyCode::Char('u') => {
                     self.mode = AppMode::Idle;
                     self.status.exit_death_saving();
-                    self.state_updated = true;
                 },
                 _ => {}
             }
