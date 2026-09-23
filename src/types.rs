@@ -201,9 +201,9 @@ impl Status {
         }
 
         if succeeded {
-            self.death_saving_throws.0 = (self.death_saving_throws.0 + 1).min(31);
+            self.death_saving_throws.0 = (self.death_saving_throws.0 + 1).min(3);
         } else {
-            self.death_saving_throws.1 = (self.death_saving_throws.1 + 1).min(31);
+            self.death_saving_throws.1 = (self.death_saving_throws.1 + 1).min(3);
         }
     }
 }
