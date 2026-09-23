@@ -2,7 +2,7 @@ use color_eyre::Result;
 use crossterm::event::{self, KeyCode};
 use ratatui::layout::Constraint::{Fill, Length, Percentage};
 use ratatui::layout::{Alignment, Layout, Margin, Offset, Position, Rect};
-use ratatui::style::palette::tailwind::{RED, YELLOW, GREEN, SLATE};
+use ratatui::style::palette::tailwind::{GREEN, RED, SLATE, YELLOW};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{
@@ -124,7 +124,11 @@ impl App {
             status_path,
             notes_path,
 
-            mode: if s.is_in_death_saving() { AppMode::DeathSavingThrows } else { AppMode::default() },
+            mode: if s.is_in_death_saving() {
+                AppMode::DeathSavingThrows
+            } else {
+                AppMode::default()
+            },
 
             input: String::new(),
             head: 0,
@@ -216,13 +220,13 @@ impl App {
                 fs::write(&self.character_path, s)?;
 
                 self.character_path.clone()
-            },
+            }
             1 => {
                 let s = serde_yaml::to_string(&self.status)?;
                 fs::write(&self.status_path, s)?;
 
                 self.status_path.clone()
-            },
+            }
             2 => self.notes_path.clone(),
             _ => panic!("selection should never be greate than 2"),
         };
@@ -261,7 +265,7 @@ impl App {
                     if self.character.max_hp.saturating_sub(self.status.damage) == 0 {
                         self.status.enter_death_saving();
                     }
-                },
+                }
                 KeyCode::Char('h') => self.mode = AppMode::Input(InputType::Heal),
                 KeyCode::Char('r') => {
                     if self.status.used_rages == self.character.rages {
@@ -374,7 +378,8 @@ impl App {
         match self.mode {
             AppMode::Input(t) => match t {
                 InputType::Damage => {
-                    self.status.damage(self.input.parse::<u8>()?, self.character.max_hp);
+                    self.status
+                        .damage(self.input.parse::<u8>()?, self.character.max_hp);
 
                     if self.character.max_hp.saturating_sub(self.status.damage) == 0 {
                         self.status.enter_death_saving();
@@ -431,7 +436,7 @@ impl App {
                 KeyCode::Char('u') => {
                     self.mode = AppMode::Idle;
                     self.status.exit_death_saving();
-                },
+                }
                 _ => {}
             }
         }
@@ -890,40 +895,29 @@ impl App {
         } else {
             (
                 Text::from(vec![
-                    Line::from((0..succeeded).map(|_| "✔").collect::<Vec<&str>>().join(" ")).green(),
+                    Line::from((0..succeeded).map(|_| "✔").collect::<Vec<&str>>().join(" "))
+                        .green(),
                     Line::from((0..failed).map(|_| "❌").collect::<Vec<&str>>().join(" ")).red(),
                 ]),
                 YELLOW.c900,
             )
         };
 
-        let bottom_text = Line::from(
-            vec![
-                " ".into(),
-
-                Span::styled("s", Style::default())
-                    .black()
-                    .bg(Color::White),
-                " ".into(),
-                "succeed".into(),
-
-                " ".into(),
-                Span::styled("f", Style::default())
-                    .black()
-                    .bg(Color::White),
-                " ".into(),
-                "fail".into(),
-
-                " ".into(),
-                Span::styled("u", Style::default())
-                    .black()
-                    .bg(Color::White),
-                " ".into(),
-                "bring up".into(),
-
-                " ".into(),
-            ],
-        );
+        let bottom_text = Line::from(vec![
+            " ".into(),
+            Span::styled("s", Style::default()).black().bg(Color::White),
+            " ".into(),
+            "succeed".into(),
+            " ".into(),
+            Span::styled("f", Style::default()).black().bg(Color::White),
+            " ".into(),
+            "fail".into(),
+            " ".into(),
+            Span::styled("u", Style::default()).black().bg(Color::White),
+            " ".into(),
+            "bring up".into(),
+            " ".into(),
+        ]);
 
         frame.render_widget(Clear, area);
 
@@ -934,7 +928,8 @@ impl App {
                     .title(" Uh oh, looks like someone is in death saving throws... ")
                     .title_bottom(bottom_text),
             ),
-            area.centered_horizontally(Fill(1)).centered_vertically(Fill(1)),
+            area.centered_horizontally(Fill(1))
+                .centered_vertically(Fill(1)),
         );
     }
 
@@ -981,7 +976,7 @@ impl App {
             AppMode::DeathSavingThrows => {
                 self.render_bindings(frame, bindings);
                 self.render_death_saving(frame);
-            },
+            }
             AppMode::EditSelection => {
                 self.render_bindings(frame, bindings);
                 self.render_edit_list(frame)

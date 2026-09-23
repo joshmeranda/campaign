@@ -214,17 +214,11 @@ mod test_status {
     use super::*;
 
     fn with_damage(s: Status, damage: u8) -> Status {
-        Status{
-            damage,
-            ..s
-        }
+        Status { damage, ..s }
     }
 
     fn with_tmp_hp(s: Status, temp_hp: u8) -> Status {
-        Status{
-            temp_hp,
-            ..s
-        }
+        Status { temp_hp, ..s }
     }
 
     #[test]
@@ -277,7 +271,7 @@ mod test_status {
             },
             Test {
                 title: "big damage",
-                status:Status::default(),
+                status: Status::default(),
                 damage: u8::MAX,
                 expected: 100,
                 expected_temp: 0,
