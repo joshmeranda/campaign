@@ -71,6 +71,9 @@ enum AppMode {
     Idle,
     Input(InputType),
 
+    ViewItem,
+    ViewSpell,
+
     DeathSavingThrows,
 
     EditSelection,
@@ -176,7 +179,7 @@ impl App {
 
                         terminal.clear()?;
                     }
-                    AppMode::Error => {
+                    AppMode::Error | AppMode::ViewItem | AppMode::ViewSpell => {
                         _ = {
                             event::read()?; // we don't care about the actual key-press here
                             self.mode = AppMode::Idle;
@@ -255,6 +258,37 @@ impl App {
         slot == 0 || self.character.spell_slots[slot as usize - 1].saturating_sub(self.status.used_slots[slot as usize - 1]) > 0
     }
 
+    fn get_bindings(&self) -> Vec<(char, &'static str)> {
+        let mut bindings = vec![
+            ('q', "quite"),
+            ('d', "take damage"),
+            ('d', "heal"),
+            ('d', "edit"),
+        ];
+
+        if self.character.rages > 0 {
+            bindings.push(('R', "rage"));
+        }
+
+        match self.active_tab {
+            Tab::Items => {
+                bindings.push(('c', "consume item"));
+                bindings.push(('n', "new item"));
+                bindings.push(('r', "remove item"));
+                bindings.push(('↳', "view item"));
+            },
+            Tab::Spells => {
+                bindings.push(('c', "cast spell"));
+                bindings.push(('n', "new spell"));
+                bindings.push(('r', "remove spell"));
+                bindings.push(('↳', "view spell"));
+            },
+            Tab::Notes => {},
+        }
+
+        bindings
+    }
+
     fn handle_events(&mut self) -> Result<(), AppError> {
         if let Some(key) = event::read()?.as_key_press_event() {
             match key.code {
@@ -295,6 +329,11 @@ impl App {
                     Tab::Notes => {},
                 },
                 KeyCode::Char('n') => panic!("not yet implementde"),
+                KeyCode::Enter => match self.active_tab {
+                    Tab::Items => self.mode = AppMode::ViewItem,
+                    Tab::Spells => self.mode = AppMode::ViewSpell,
+                    Tab::Notes => {},
+                },
 
                 KeyCode::Up => match self.active_tab {
                     Tab::Items => self.item_table_state.select_previous(),
@@ -310,7 +349,6 @@ impl App {
                         .note_scrollbar_state
                         .scroll(ratatui::widgets::ScrollDirection::Forward),
                 },
-
                 KeyCode::Right => {
                     self.active_tab = match self.active_tab {
                         Tab::Items => {
@@ -483,8 +521,8 @@ impl App {
             Paragraph::new(message).alignment(Alignment::Center).block(
                 Self::default_block()
                     .bg(RED.c900)
-                    .title("Error")
-                    .title_bottom("press any key to continue"),
+                    .title(" Error ")
+                    .title_bottom(" press any key to continue "),
             ),
             area,
         );
@@ -872,35 +910,6 @@ impl App {
         Ok(())
     }
 
-    fn get_bindings(&self) -> Vec<(char, &'static str)> {
-        let mut bindings = vec![
-            ('q', "quite"),
-            ('d', "take damage"),
-            ('d', "heal"),
-            ('d', "edit"),
-        ];
-
-        if self.character.rages > 0 {
-            bindings.push(('R', "rage"));
-        }
-
-        match self.active_tab {
-            Tab::Items => {
-                bindings.push(('c', "consume item"));
-                bindings.push(('n', "new item"));
-                bindings.push(('r', "remove item"))
-            },
-            Tab::Spells => {
-                bindings.push(('c', "cast spell"));
-                bindings.push(('n', "new spell"));
-                bindings.push(('r', "remove spell"))
-            },
-            Tab::Notes => {},
-        }
-
-        bindings
-    }
-
     fn render_bindings(&self, frame: &mut Frame, area: Rect) {
         let bindings = self.get_bindings();
 
@@ -941,8 +950,8 @@ impl App {
     }
 
     fn render_death_saving(&self, frame: &mut Frame) {
-        let area = frame.area();
-        let area = area.centered(Length(70), Percentage(10));
+        let area = frame.area()
+            .centered(Length(70), Percentage(10));
 
         let (succeeded, failed) = self.status.death_saves.unwrap_or_default();
 
@@ -991,6 +1000,41 @@ impl App {
         );
     }
 
+    fn render_item_view(&self, frame: &mut Frame) {
+        let item = &self.status.items[self.item_table_state.selected().unwrap()];
+        let content = Paragraph::new(format!("{}", item.description))
+            .wrap(Wrap { trim: false })
+            .block(
+                Self::default_block()
+                .title(format!(" {} ", item.name.clone()))
+                .title_bottom(" press any key to exit "),
+            );
+
+        let area = frame.area()
+            .centered(Length(70), Length(content.line_count(70) as u16));
+
+        frame.render_widget(Clear, area);
+        frame.render_widget(content, area);
+    }
+
+    fn render_spell_view(&self, frame: &mut Frame) {
+        let spell = &self.character.spells[self.spell_table_state.selected().unwrap()];
+
+        let content = Paragraph::new(format!("{}", spell.description))
+            .wrap(Wrap { trim: false })
+            .block(
+                Self::default_block()
+                .title(format!(" {} {} ", spell.name.clone(), utils::to_roman_numerals(spell.level as usize)))
+                .title_bottom(" press any key to exit "),
+            );
+
+        let area = frame.area()
+            .centered(Length(70), Length(content.line_count(70) as u16));
+
+        frame.render_widget(Clear, area);
+        frame.render_widget(content, area);
+    }
+
     fn render(&mut self, frame: &mut Frame) -> Result<(), AppError> {
         let area = frame.area();
 
@@ -1027,18 +1071,17 @@ impl App {
 
         self.render_tabs(frame, right)?;
 
+        if !matches!(self.mode, AppMode::Input(_)) {
+            self.render_bindings(frame, bindings);
+        }
+
         match self.mode {
             AppMode::Input(t) => self.render_input(frame, bindings, t),
-            AppMode::DeathSavingThrows => {
-                self.render_bindings(frame, bindings);
-                self.render_death_saving(frame);
-            }
-            AppMode::EditSelection => {
-                self.render_bindings(frame, bindings);
-                self.render_edit_list(frame)
-            }
+            AppMode::DeathSavingThrows => self.render_death_saving(frame),
+            AppMode::EditSelection => self.render_edit_list(frame),
+            AppMode::ViewItem => self.render_item_view(frame),
+            AppMode::ViewSpell => self.render_spell_view(frame),
             AppMode::Error => {
-                self.render_bindings(frame, bindings);
                 if let Some(err) = &self.err {
                     Self::render_popup(frame, format!("{}", err));
                     self.err = None;
@@ -1046,7 +1089,7 @@ impl App {
                     Self::render_popup(frame, String::from("something wrong happened"));
                 }
             }
-            _ => self.render_bindings(frame, bindings),
+            _ => {},
         };
 
         Ok(())
