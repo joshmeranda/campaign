@@ -731,6 +731,8 @@ impl App {
 
         let mut rows = Vec::<Row>::with_capacity(self.status.items.len());
 
+        self.status.items.sort_by(|lhs, rhs| lhs.name.cmp(&rhs.name));
+
         for item in &self.status.items {
             rows.push(Row::new([
                 item.name.to_string(),
@@ -757,13 +759,13 @@ impl App {
 
         let mut rows = Vec::<Row>::with_capacity(self.character.spells.len());
 
-        self.character.spells.sort_by(|a, b| {
-            if a.level > b.level {
+        self.character.spells.sort_by(|lhs, rhs| {
+            if lhs.level > rhs.level {
                 std::cmp::Ordering::Greater
-            } else if a.level < b.level {
+            } else if lhs.level < rhs.level {
                 std::cmp::Ordering::Less
             } else {
-                a.name.cmp(&b.name)
+                lhs.name.cmp(&rhs.name)
             }
         });
 
