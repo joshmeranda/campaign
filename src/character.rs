@@ -267,7 +267,7 @@ impl App {
                     }
                 }
                 KeyCode::Char('h') => self.mode = AppMode::Input(InputType::Heal),
-                KeyCode::Char('r') => {
+                KeyCode::Char('R') => {
                     if self.status.used_rages == self.character.rages {
                         self.set_err(AppError::Error(String::from("You ran out of rages")))
                     } else {
@@ -275,7 +275,22 @@ impl App {
                     }
                 }
                 KeyCode::Char('e') => self.mode = AppMode::EditSelection,
-                KeyCode::Char('c') => self.mode = AppMode::Input(InputType::Cast),
+                KeyCode::Char('c') => match self.active_tab {
+                    Tab::Items => {
+                        if let Some(i) = self.item_table_state.selected() {
+                            if self.status.items[i].count == 1 {
+                                self.status.items.remove(i);
+                            } else {
+                                self.status.items[i].count -= 1;
+                            }
+                        } else {
+                            self.set_err(AppError::Error(String::from("could not consume item: no item selected")));
+                        }
+                    },
+                    Tab::Spells => self.mode = AppMode::Input(InputType::Cast),
+                    Tab::Notes => {},
+                },
+                KeyCode::Char('n') => panic!("not yet implementde"),
 
                 KeyCode::Up => match self.active_tab {
                     Tab::Items => self.item_table_state.select_previous(),
@@ -471,6 +486,7 @@ impl App {
         );
     }
 
+    // todo: replace up and down with letter selection
     fn render_edit_list(&mut self, frame: &mut Frame) {
         let area = frame.area();
         let area = area.centered(Percentage(60), Length(5));
@@ -836,17 +852,39 @@ impl App {
         Ok(())
     }
 
-    const SHORT_BINDINGS_LIST: [(&'static str, &'static str); 6] = [
-        ("q", "quit"),
-        ("d", "take damage"),
-        ("h", "heal"),
-        ("r", "rage"),
-        ("c", "cast spell"),
-        ("e", "edit"),
-    ];
+    fn get_bindings(&self) -> Vec<(char, &'static str)> {
+        let mut bindings = vec![
+            ('q', "quite"),
+            ('d', "take damage"),
+            ('d', "heal"),
+            ('d', "edit"),
+        ];
+
+        if self.character.rages > 0 {
+            bindings.push(('R', "rage"));
+        }
+
+        match self.active_tab {
+            Tab::Items => {
+                bindings.push(('c', "consume item"));
+                bindings.push(('n', "new item"));
+                bindings.push(('r', "remove item"))
+            },
+            Tab::Spells => {
+                bindings.push(('c', "cast spell"));
+                bindings.push(('n', "new spell"));
+                bindings.push(('r', "remove spell"))
+            },
+            Tab::Notes => {},
+        }
+
+        bindings
+    }
 
     fn render_bindings(&self, frame: &mut Frame, area: Rect) {
-        let constraints = (0..Self::SHORT_BINDINGS_LIST.len()).map(|_| Fill(1));
+        let bindings = self.get_bindings();
+
+        let constraints = (0..bindings.len()).map(|_| Fill(1));
         let cells = Layout::horizontal(constraints)
             .split(area)
             .to_vec()
@@ -854,11 +892,11 @@ impl App {
 
         for (i, cell) in cells.enumerate() {
             let line = Line::from(vec![
-                Span::styled(Self::SHORT_BINDINGS_LIST[i].0, Style::default())
+                Span::styled(String::from(bindings[i].0), Style::default())
                     .black()
                     .bg(Color::White),
                 " ".into(),
-                Self::SHORT_BINDINGS_LIST[i].1.into(),
+                bindings[i].1.into(),
             ]);
             let text = Text::from(line);
 
