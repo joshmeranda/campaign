@@ -952,14 +952,12 @@ impl App {
         }
 
         if has_magic {
-            class_length += 12;
+            class_length += 11;
         }
 
-        // todo: there is an empty bit of extra space between class abilities and coins
         let [left_top, left_upper_middle, left_lower_middle, left_bottom] = left.layout(
             &Layout::vertical([Length(23), Length(class_length), Length(3), Fill(1)])
                 .spacing(1)
-                .flex(layout::Flex::SpaceEvenly),
         );
 
         self.render_header(frame, header);
