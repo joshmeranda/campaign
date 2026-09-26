@@ -174,9 +174,9 @@ impl Status {
     }
 
     // Decrements the amount of available spell slots are the given level. Slot is ignored if the given number is outside the valid range [0-9].
-    pub fn cast(&mut self, slot: usize) {
+    pub fn cast(&mut self, slot: u8) {
         if slot >= 1 && slot <= 9 {
-            self.used_slots[slot - 1] += 1;
+            self.used_slots[slot as usize - 1] += 1;
         }
     }
 

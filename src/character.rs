@@ -251,6 +251,10 @@ impl App {
         self.mode = AppMode::Error;
     }
 
+    fn spell_slot_is_available(&self, slot: u8) -> bool {
+        slot == 0 || self.character.spell_slots[slot as usize - 1].saturating_sub(self.status.used_slots[slot as usize - 1]) > 0
+    }
+
     fn handle_events(&mut self) -> Result<(), AppError> {
         if let Some(key) = event::read()?.as_key_press_event() {
             match key.code {
@@ -403,7 +407,7 @@ impl App {
                 }
                 InputType::Heal => self.status.heal(self.input.parse::<u8>()?),
                 InputType::Cast => {
-                    let slot = self.input.parse::<usize>()?;
+                    let slot = self.input.parse::<u8>()?;
 
                     if slot == 0 || slot > 9 {
                         return Err(AppError::from(String::from(
@@ -411,7 +415,7 @@ impl App {
                         )));
                     }
 
-                    if self.character.spell_slots[slot - 1] - self.status.used_slots[slot - 1] > 0 {
+                    if self.spell_slot_is_available(slot) {
                         self.status.cast(slot);
                     } else {
                         return Err(AppError::from(String::from("not enough slots available")));
@@ -756,14 +760,20 @@ impl App {
         let mut items = Vec::<Row>::with_capacity(self.character.spells.len());
 
         for spell in &self.character.spells {
+            let color = if self.spell_slot_is_available(spell.level) {
+                Color::default()
+            } else {
+                Color::Red
+            };
+
             items.push(Row::new([
-                spell.name.to_string(),
+                Span::from(spell.name.to_string()),
                 if spell.level == 0 {
                     String::from("C")
                 } else {
                     to_roman_numerals(spell.level as usize).to_string()
-                },
-                spell.description.clone(),
+                }.fg(color),
+                Span::from(spell.description.clone()),
             ]));
         }
 
