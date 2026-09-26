@@ -725,22 +725,21 @@ impl App {
     }
 
     fn render_items(&mut self, frame: &mut Frame, area: Rect) {
-        // todo: should support scroll bar
         let header = Row::new(["name", "count", "description"])
             .style(Style::default().bg(Self::BLOCK_COLOR))
             .bold();
 
-        let mut items = Vec::<Row>::with_capacity(self.status.items.len());
+        let mut rows = Vec::<Row>::with_capacity(self.status.items.len());
 
         for item in &self.status.items {
-            items.push(Row::new([
+            rows.push(Row::new([
                 item.name.to_string(),
                 item.count.to_string(),
                 item.description.to_string(),
             ]));
         }
 
-        let table = Table::new(items, [Length(20), Length(10), Fill(1)])
+        let table = Table::new(rows, [Length(20), Length(10), Fill(1)])
             .block(Self::default_block())
             .header(header)
             .row_highlight_style(Style::new().on_white().bold())
@@ -752,12 +751,21 @@ impl App {
     }
 
     fn render_spells(&mut self, frame: &mut Frame, area: Rect) {
-        // todo: should support scroll bar
         let header = Row::new(["name", "lvl", "description"])
             .style(Style::default().bg(Self::BLOCK_COLOR))
             .bold();
 
-        let mut items = Vec::<Row>::with_capacity(self.character.spells.len());
+        let mut rows = Vec::<Row>::with_capacity(self.character.spells.len());
+
+        self.character.spells.sort_by(|a, b| {
+            if a.level > b.level {
+                std::cmp::Ordering::Greater
+            } else if a.level < b.level {
+                std::cmp::Ordering::Less
+            } else {
+                a.name.cmp(&b.name)
+            }
+        });
 
         for spell in &self.character.spells {
             let color = if self.spell_slot_is_available(spell.level) {
@@ -766,7 +774,7 @@ impl App {
                 Color::Red
             };
 
-            items.push(Row::new([
+            rows.push(Row::new([
                 Span::from(spell.name.to_string()),
                 if spell.level == 0 {
                     String::from("C")
@@ -777,7 +785,7 @@ impl App {
             ]));
         }
 
-        let table = Table::new(items, [Length(20), Length(10), Fill(1)])
+        let table = Table::new(rows, [Length(20), Length(10), Fill(1)])
             .block(Self::default_block())
             .header(header)
             .row_highlight_style(Style::new().on_white().bold())
