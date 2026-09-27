@@ -316,6 +316,8 @@ impl App {
                 KeyCode::Char('c') => match self.active_tab {
                     Tab::Items => {
                         if let Some(i) = self.item_table_state.selected() {
+                            let i = i + self.item_table_state.offset();
+
                             if self.status.items[i].count == 1 {
                                 self.status.items.remove(i);
                             } else {
@@ -1001,7 +1003,7 @@ impl App {
     }
 
     fn render_item_view(&self, frame: &mut Frame) {
-        let item = &self.status.items[self.item_table_state.selected().unwrap()];
+        let item = &self.status.items[self.item_table_state.selected().unwrap() + self.item_table_state.offset()];
         let content = Paragraph::new(format!("{}", item.description))
             .wrap(Wrap { trim: false })
             .block(
@@ -1018,7 +1020,7 @@ impl App {
     }
 
     fn render_spell_view(&self, frame: &mut Frame) {
-        let spell = &self.character.spells[self.spell_table_state.selected().unwrap()];
+        let spell = &self.character.spells[self.spell_table_state.selected().unwrap() + self.spell_table_state.offset()];
 
         let content = Paragraph::new(format!("{}", spell.description))
             .wrap(Wrap { trim: false })
