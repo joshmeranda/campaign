@@ -1,7 +1,7 @@
 use color_eyre::Result;
 use crossterm::event::{self, KeyCode};
 use ratatui::layout::Constraint::{Fill, Length, Percentage};
-use ratatui::layout::{Alignment, Layout, Margin, Offset, Position, Rect};
+use ratatui::layout::{Alignment, Layout, Margin, Offset, Rect};
 use ratatui::style::palette::tailwind::{GREEN, RED, SLATE, YELLOW};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
@@ -17,6 +17,7 @@ use utils::color_for_damage_percent_lost;
 use crate::character::utils::to_roman_numerals;
 use crate::error::AppError;
 use crate::types::{Ability, Character, Status};
+use crate::input::{Input, InputHandler, InputState};
 
 mod utils {
     use ratatui::style::Color;
@@ -96,8 +97,7 @@ pub struct App {
 
     mode: AppMode,
 
-    input: String,
-    head: usize,
+    bindings_input_state: InputState,
 
     character: Character,
     status: Status,
@@ -133,8 +133,7 @@ impl App {
                 AppMode::default()
             },
 
-            input: String::new(),
-            head: 0,
+            bindings_input_state: InputState::default(),
 
             character: c,
             status: s,
@@ -167,7 +166,14 @@ impl App {
 
                 match self.mode {
                     AppMode::Idle => self.handle_events()?,
-                    AppMode::Input(_) => self.handle_input_events()?,
+                    AppMode::Input(_) => if ! self.bindings_input_state.handle()? {
+                        match self.handle_input() {
+                            Ok(()) => self.mode = AppMode::Idle,
+                            Err(err) => self.set_err(err),
+                        }
+
+                        self.bindings_input_state.reset();
+                    },
                     AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
                     AppMode::EditSelection => self.handle_edit_select_events()?,
                     AppMode::Editing => {
@@ -385,69 +391,21 @@ impl App {
         Ok(())
     }
 
-    fn handle_input_events(&mut self) -> Result<(), AppError> {
-        if let Some(key) = event::read()?.as_key_press_event() {
-            match key.code {
-                KeyCode::Esc => {
-                    self.mode = AppMode::Idle;
-
-                    self.input = String::new();
-                    self.head = 0;
-                }
-                KeyCode::Char(c) => {
-                    self.input.insert(self.head, c);
-                    self.head += 1;
-                }
-                KeyCode::Enter => {
-                    if let Err(err) = self.handle_input() {
-                        self.set_err(err);
-                    }
-
-                    if let AppMode::Input(_) = self.mode {
-                        self.mode = AppMode::Idle;
-                    }
-
-                    self.input = String::new();
-                    self.head = 0;
-                }
-                KeyCode::Backspace => {
-                    if self.head > 0 {
-                        self.input.remove(self.head - 1);
-                        self.head -= 1;
-                    }
-                }
-                KeyCode::Left => {
-                    if self.head > 0 {
-                        self.head -= 1
-                    }
-                }
-                KeyCode::Right => {
-                    if self.head < self.input.len() {
-                        self.head += 1;
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        Ok(())
-    }
-
     fn handle_input(&mut self) -> Result<(), AppError> {
         match self.mode {
             AppMode::Input(t) => match t {
                 InputType::Damage => {
                     self.status
-                        .damage(self.input.parse::<u8>()?, self.character.max_hp);
+                        .damage(self.bindings_input_state.value().parse::<u8>()?, self.character.max_hp);
 
                     if self.character.max_hp.saturating_sub(self.status.damage) == 0 {
                         self.status.enter_death_saving();
                         self.mode = AppMode::DeathSavingThrows;
                     }
                 }
-                InputType::Heal => self.status.heal(self.input.parse::<u8>()?),
+                InputType::Heal => self.status.heal(self.bindings_input_state.value().parse::<u8>()?),
                 InputType::Cast => {
-                    let slot = self.input.parse::<u8>()?;
+                    let slot = self.bindings_input_state.value().parse::<u8>()?;
 
                     if slot == 0 || slot > 9 {
                         return Err(AppError::from(String::from(
@@ -935,7 +893,7 @@ impl App {
         }
     }
 
-    fn render_input(&self, frame: &mut Frame, area: Rect, input_type: InputType) {
+    fn render_input(&mut self, frame: &mut Frame, area: Rect, input_type: InputType) {
         let prompt = match input_type {
             InputType::Damage => "Damage",
             InputType::Heal => "Heal",
@@ -945,10 +903,10 @@ impl App {
         let [prompt_rect, input] =
             area.layout(&Layout::horizontal([Length(prompt.len() as u16), Fill(1)]).spacing(1));
 
-        frame.render_widget(Paragraph::new(prompt.bg(Color::White).black()), prompt_rect);
-        frame.render_widget(Paragraph::new(self.input.clone()), input);
+        frame.render_widget(Line::from(prompt.bg(Color::White).black()), prompt_rect);
+        frame.render_stateful_widget(Input::new(), input, &mut self.bindings_input_state);
 
-        frame.set_cursor_position(Position::new(input.x + (self.head as u16), input.y));
+        self.bindings_input_state.set_cursor_position(frame);
     }
 
     fn render_death_saving(&self, frame: &mut Frame) {

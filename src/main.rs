@@ -1,6 +1,7 @@
 mod character;
 mod error;
 mod types;
+mod input;
 
 use crate::error::AppError;
 use crate::types::{Character, Status};
