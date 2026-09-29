@@ -155,7 +155,7 @@ impl TryFrom<[&str; 3]> for Item {
 
     fn try_from(values: [&str; 3]) -> Result<Item, Self::Error> {
         if values[0].is_empty() {
-            return Err(AppError::Error(String::from("item name must not be empty")))
+            return Err(AppError::Error(String::from("item name must not be empty")));
         }
 
         let count = values[1].parse::<u8>()?;
@@ -163,7 +163,7 @@ impl TryFrom<[&str; 3]> for Item {
         Ok(Item {
             name: String::from(values[0]),
             count: count,
-            description: String::from(values[2])
+            description: String::from(values[2]),
         })
     }
 }

@@ -6,8 +6,8 @@ use ratatui::style::palette::tailwind::{GREEN, RED, SLATE, YELLOW};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{
-    Block, Clear, Gauge, Paragraph, Row, Scrollbar, ScrollbarOrientation,
-    ScrollbarState, Table, TableState, Tabs, Wrap,
+    Block, Clear, Gauge, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table,
+    TableState, Tabs, Wrap,
 };
 use ratatui::{layout, DefaultTerminal, Frame};
 use serde::de::DeserializeOwned;
@@ -17,8 +17,10 @@ use utils::color_for_damage_percent_lost;
 
 use crate::character::utils::to_roman_numerals;
 use crate::error::AppError;
-use crate::types::{Ability, Character, Status, Item};
-use crate::widgets::input::{Input,  InputState, MultiInput, MultiInputState, HandleState, InputHandler};
+use crate::types::{Ability, Character, Item, Status};
+use crate::widgets::input::{
+    HandleState, Input, InputHandler, InputState, MultiInput, MultiInputState,
+};
 use crate::widgets::options::{OptionBinding, Options, OptionsState};
 
 mod utils {
@@ -175,7 +177,7 @@ impl App {
                 match &self.mode {
                     AppMode::Idle => self.handle_events()?,
                     AppMode::Input(_) => match self.bindings_input_state.handle()? {
-                        HandleState::Expecting => {},
+                        HandleState::Expecting => {}
                         HandleState::Cancelled => self.mode = AppMode::Idle,
                         HandleState::Done => match self.handle_input() {
                             Ok(()) => self.mode = AppMode::Idle,
@@ -186,16 +188,18 @@ impl App {
                     AppMode::CreateItem => match self.create_item_state.handle() {
                         Err(err) => self.set_err(err),
                         Ok(handle_state) => match handle_state {
-                            HandleState::Expecting => {},
+                            HandleState::Expecting => {}
                             HandleState::Cancelled => self.mode = AppMode::Idle,
-                            HandleState::Done => match Item::try_from(self.create_item_state.values()) {
-                                Ok(i) => {
-                                    self.status.items.push(i);
-                                    self.mode = AppMode::Idle;
-                                    self.create_item_state.reset();
+                            HandleState::Done => {
+                                match Item::try_from(self.create_item_state.values()) {
+                                    Ok(i) => {
+                                        self.status.items.push(i);
+                                        self.mode = AppMode::Idle;
+                                        self.create_item_state.reset();
+                                    }
+                                    Err(err) => self.set_err(err),
                                 }
-                                Err(err) => self.set_err(err),
-                            },
+                            }
                         },
                     },
 
@@ -204,11 +208,13 @@ impl App {
                     AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
 
                     AppMode::EditOptions => match self.edit_options_state.handle()? {
-                        HandleState::Expecting => {},
+                        HandleState::Expecting => {}
                         HandleState::Done => match self.edit_options_state.selected() {
-                            None => { },
-                            Some(c) => if let Some(_) = Self::EDIT_OPTIONS.iter().find(|o| o.0 == c) {
-                                self.mode = AppMode::Editing;
+                            None => {}
+                            Some(c) => {
+                                if let Some(_) = Self::EDIT_OPTIONS.iter().find(|o| o.0 == c) {
+                                    self.mode = AppMode::Editing;
+                                }
                             }
                         },
                         HandleState::Cancelled => self.mode = AppMode::Idle,
@@ -227,11 +233,11 @@ impl App {
                     AppMode::Error(mode) => {
                         event::read()?; // we don't care about the actual key-press here
                         self.mode = (**mode).clone();
-                    },
+                    }
 
                     AppMode::ViewItem | AppMode::ViewSpell => {
-                            event::read()?; // we don't care about the actual key-press here
-                            self.mode = AppMode::Idle;
+                        event::read()?; // we don't care about the actual key-press here
+                        self.mode = AppMode::Idle;
                     }
                     AppMode::Exiting => terminal.clear()?,
                 };
@@ -283,7 +289,11 @@ impl App {
             }
             'n' => self.notes_path.clone(),
 
-            _ => return Err(AppError::Error(String::from("selection should always be in [c s n]"))),
+            _ => {
+                return Err(AppError::Error(String::from(
+                    "selection should always be in [c s n]",
+                )))
+            }
         };
 
         let path_name = path.to_str().unwrap();
@@ -307,7 +317,10 @@ impl App {
     }
 
     fn spell_slot_is_available(&self, slot: u8) -> bool {
-        slot == 0 || self.character.spell_slots[slot as usize - 1].saturating_sub(self.status.used_slots[slot as usize - 1]) > 0
+        slot == 0
+            || self.character.spell_slots[slot as usize - 1]
+                .saturating_sub(self.status.used_slots[slot as usize - 1])
+                > 0
     }
 
     fn get_bindings(&self) -> Vec<(char, &'static str)> {
@@ -328,14 +341,14 @@ impl App {
                 bindings.push(('n', "new item"));
                 bindings.push(('r', "remove item"));
                 bindings.push(('↳', "view item"));
-            },
+            }
             Tab::Spells => {
                 bindings.push(('c', "cast spell"));
                 bindings.push(('n', "new spell"));
                 bindings.push(('r', "remove spell"));
                 bindings.push(('↳', "view spell"));
-            },
-            Tab::Notes => {},
+            }
+            Tab::Notes => {}
         }
 
         bindings
@@ -376,21 +389,23 @@ impl App {
                                 self.status.items[i].count -= 1;
                             }
                         } else {
-                            self.set_err(AppError::Error(String::from("could not consume item: no item selected")));
+                            self.set_err(AppError::Error(String::from(
+                                "could not consume item: no item selected",
+                            )));
                         }
-                    },
+                    }
                     Tab::Spells => self.mode = AppMode::Input(InputType::Cast),
-                    Tab::Notes => {},
+                    Tab::Notes => {}
                 },
                 KeyCode::Char('n') => match self.active_tab {
                     Tab::Items => self.mode = AppMode::CreateItem,
                     Tab::Spells => self.mode = AppMode::CreateSpell,
-                    Tab::Notes => {},
+                    Tab::Notes => {}
                 },
                 KeyCode::Enter => match self.active_tab {
                     Tab::Items => self.mode = AppMode::ViewItem,
                     Tab::Spells => self.mode = AppMode::ViewSpell,
-                    Tab::Notes => {},
+                    Tab::Notes => {}
                 },
 
                 KeyCode::Up => match self.active_tab {
@@ -445,15 +460,19 @@ impl App {
         match self.mode {
             AppMode::Input(t) => match t {
                 InputType::Damage => {
-                    self.status
-                        .damage(self.bindings_input_state.value().parse::<u8>()?, self.character.max_hp);
+                    self.status.damage(
+                        self.bindings_input_state.value().parse::<u8>()?,
+                        self.character.max_hp,
+                    );
 
                     if self.character.max_hp.saturating_sub(self.status.damage) == 0 {
                         self.status.enter_death_saving();
                         self.mode = AppMode::DeathSavingThrows;
                     }
                 }
-                InputType::Heal => self.status.heal(self.bindings_input_state.value().parse::<u8>()?),
+                InputType::Heal => self
+                    .status
+                    .heal(self.bindings_input_state.value().parse::<u8>()?),
                 InputType::Cast => {
                     let slot = self.bindings_input_state.value().parse::<u8>()?;
 
@@ -532,16 +551,14 @@ impl App {
         let area = frame.area();
         let area = area.centered(Percentage(60), Length(5));
 
-
         frame.render_widget(Clear, area);
 
         frame.render_widget(
-            Options::new(Self::EDIT_OPTIONS)
-                .block(
-                    Self::default_block()
-                        .title(" What do you want to edit? ")
-                        .title_bottom(" press ESC to cancel "),
-                ),
+            Options::new(Self::EDIT_OPTIONS).block(
+                Self::default_block()
+                    .title(" What do you want to edit? ")
+                    .title_bottom(" press ESC to cancel "),
+            ),
             area,
         );
     }
@@ -760,7 +777,9 @@ impl App {
 
         let mut rows = Vec::<Row>::with_capacity(self.status.items.len());
 
-        self.status.items.sort_by(|lhs, rhs| lhs.name.cmp(&rhs.name));
+        self.status
+            .items
+            .sort_by(|lhs, rhs| lhs.name.cmp(&rhs.name));
 
         for item in &self.status.items {
             rows.push(Row::new([
@@ -811,7 +830,8 @@ impl App {
                     String::from("C")
                 } else {
                     to_roman_numerals(spell.level as usize).to_string()
-                }.fg(color),
+                }
+                .fg(color),
                 Span::from(spell.description.clone()),
             ]));
         }
@@ -941,8 +961,7 @@ impl App {
     }
 
     fn render_death_saving(&self, frame: &mut Frame) {
-        let area = frame.area()
-            .centered(Length(70), Percentage(10));
+        let area = frame.area().centered(Length(70), Percentage(10));
 
         let (succeeded, failed) = self.status.death_saves.unwrap_or_default();
 
@@ -992,16 +1011,18 @@ impl App {
     }
 
     fn render_item_view(&self, frame: &mut Frame) {
-        let item = &self.status.items[self.item_table_state.selected().unwrap() + self.item_table_state.offset()];
+        let item = &self.status.items
+            [self.item_table_state.selected().unwrap() + self.item_table_state.offset()];
         let content = Paragraph::new(format!("{}", item.description))
             .wrap(Wrap { trim: false })
             .block(
                 Self::default_block()
-                .title(format!(" {} ", item.name.clone()))
-                .title_bottom(" press any key to exit "),
+                    .title(format!(" {} ", item.name.clone()))
+                    .title_bottom(" press any key to exit "),
             );
 
-        let area = frame.area()
+        let area = frame
+            .area()
             .centered(Length(70), Length(content.line_count(70) as u16));
 
         frame.render_widget(Clear, area);
@@ -1009,17 +1030,23 @@ impl App {
     }
 
     fn render_spell_view(&self, frame: &mut Frame) {
-        let spell = &self.character.spells[self.spell_table_state.selected().unwrap() + self.spell_table_state.offset()];
+        let spell = &self.character.spells
+            [self.spell_table_state.selected().unwrap() + self.spell_table_state.offset()];
 
         let content = Paragraph::new(format!("{}", spell.description))
             .wrap(Wrap { trim: false })
             .block(
                 Self::default_block()
-                .title(format!(" {} {} ", spell.name.clone(), utils::to_roman_numerals(spell.level as usize)))
-                .title_bottom(" press any key to exit "),
+                    .title(format!(
+                        " {} {} ",
+                        spell.name.clone(),
+                        utils::to_roman_numerals(spell.level as usize)
+                    ))
+                    .title_bottom(" press any key to exit "),
             );
 
-        let area = frame.area()
+        let area = frame
+            .area()
             .centered(Length(70), Length(content.line_count(70) as u16));
 
         frame.render_widget(Clear, area);
@@ -1027,12 +1054,14 @@ impl App {
     }
 
     fn render_create_item(&mut self, frame: &mut Frame) {
-        let area = frame.area()
-            .centered(Length(70), Length(9));
-        let create_item = MultiInput::new(["name", "count", "description"])
-            .block(Self::default_block().title(" new item ").title_bottom(" press ESC to cancel "));
+        let area = frame.area().centered(Length(70), Length(9));
+        let create_item = MultiInput::new(["name", "count", "description"]).block(
+            Self::default_block()
+                .title(" new item ")
+                .title_bottom(" press ESC to cancel "),
+        );
 
-        frame.render_widget(Clear{}, area);
+        frame.render_widget(Clear {}, area);
         frame.render_stateful_widget(create_item, area, &mut self.create_item_state);
 
         self.create_item_state.set_cursor_position(frame);
@@ -1061,8 +1090,7 @@ impl App {
         }
 
         let [left_top, left_upper_middle, left_lower_middle, left_bottom] = left.layout(
-            &Layout::vertical([Length(23), Length(class_length), Length(3), Fill(1)])
-                .spacing(1)
+            &Layout::vertical([Length(23), Length(class_length), Length(3), Fill(1)]).spacing(1),
         );
 
         self.render_header(frame, header);
@@ -1098,7 +1126,7 @@ impl App {
                     Self::render_popup(frame, String::from("something wrong happened"));
                 }
             }
-            _ => {},
+            _ => {}
         };
 
         Ok(())
