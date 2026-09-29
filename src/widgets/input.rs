@@ -92,6 +92,8 @@ impl InputHandler for InputState {
 
             KeyCode::Enter => return Ok(HandleState::Done),
 
+            KeyCode::Esc => return Ok(HandleState::Cancelled),
+
             _ => {}
         }
 
