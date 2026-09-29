@@ -1,4 +1,4 @@
-use crossterm::event::{self, KeyCode};
+use crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::Line;
@@ -8,10 +8,19 @@ use ratatui::buffer::Buffer;
 use crate::error::AppError;
 
 pub trait InputHandler {
-	// handle returns Some(true) the InputHanlder should expect to continue taking input. In most cases, this will be when the handler reads ENTER.
-	fn handle(&mut self) -> Result<bool, AppError>;
+	// handle reads a keyboard events and returns Some(true) the InputHanlder should expect to continue taking input. In most cases, this will be when the handler reads ENTER.
+	fn handle(&mut self) -> Result<bool, AppError> {
+		if let Some(key) = event::read()?.as_key_press_event() {
+			self.handle_event(key)
+		} else {
+			Ok(true)
+		}
+	}
+
+	fn handle_event(&mut self, event: KeyEvent) -> Result<bool, AppError>;
 }
 
+// todo: need to support text being longer than the input widget width
 #[derive(Default)]
 pub struct InputState {
 	buffer: String,
@@ -23,7 +32,6 @@ pub struct InputState {
 
 impl InputState {
 	pub fn move_cursor(&mut self, n: i8) {
-		// print!("{} {} {} {}|", self.buffer, self.head, n, self.head.saturating_add_signed(n as i16).min(self.buffer.len() as u16));
 		self.head = self.head.saturating_add_signed(n as i16).min(self.buffer.len() as u16);
 	}
 
@@ -48,29 +56,32 @@ impl InputState {
 }
 
 impl InputHandler for InputState {
-	fn handle(&mut self) -> Result<bool, AppError> {
-		if let Some(key) = event::read()?.as_key_press_event() {
-			match key.code {
-				KeyCode::Char(c) => {
+	fn handle_event(&mut self, event: KeyEvent) -> Result<bool, AppError> {
+		match event.code {
+			KeyCode::Char(c) => {
+				if c == 'u' && event.modifiers.contains(KeyModifiers::CONTROL) {
+					self.buffer.truncate(0);
+					self.head = 0;
+				} else {
 					self.buffer.insert(self.head as usize, c);
 					self.move_cursor(1);
-				},
+				}
+			},
 
-				KeyCode::Right => self.move_cursor(1),
-				KeyCode::Left => self.move_cursor(-1),
+			KeyCode::Right => self.move_cursor(1),
+			KeyCode::Left => self.move_cursor(-1),
 
-				KeyCode::Backspace => {
-					if self.head != 0 {
-						self.buffer.remove(self.head.saturating_sub(1) as usize);
-					}
-	
-					self.move_cursor(-1);
-				},
+			KeyCode::Backspace => {
+				if self.head != 0 {
+					self.buffer.remove(self.head.saturating_sub(1) as usize);
+				}
 
-				KeyCode::Enter => return Ok(false),
+				self.move_cursor(-1);
+			},
 
-				_ => {},
-			}
+			KeyCode::Enter => return Ok(false),
+
+			_ => {},
 		}
 
 		Ok(true)

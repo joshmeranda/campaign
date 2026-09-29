@@ -12,12 +12,14 @@ use ratatui::widgets::{
 use ratatui::{layout, DefaultTerminal, Frame};
 use serde::de::DeserializeOwned;
 use std::fs;
+
 use utils::color_for_damage_percent_lost;
 
 use crate::character::utils::to_roman_numerals;
 use crate::error::AppError;
-use crate::types::{Ability, Character, Status};
-use crate::input::{Input, InputHandler, InputState};
+use crate::types::{Ability, Character, Status, Item};
+use crate::widgets::input::{Input, InputHandler, InputState};
+use crate::widgets::item_create::{CreateItem, CreateItemState};
 
 mod utils {
     use ratatui::style::Color;
@@ -75,6 +77,9 @@ enum AppMode {
     ViewItem,
     ViewSpell,
 
+    CreateItem,
+    CreateSpell,
+
     DeathSavingThrows,
 
     EditSelection,
@@ -97,17 +102,17 @@ pub struct App {
 
     mode: AppMode,
 
-    bindings_input_state: InputState,
-
     character: Character,
     status: Status,
 
+    active_tab: Tab,
+
+    bindings_input_state: InputState,
     item_table_state: TableState,
     spell_table_state: TableState,
     edit_select_list_state: ListState,
     note_scrollbar_state: ScrollbarState,
-
-    active_tab: Tab,
+    create_item_state: CreateItemState,
 
     // todo: provide a way to de-dup errors to prevent locking the UI (like when notes file does not exist or could not be read)
     err: Option<AppError>,
@@ -138,12 +143,13 @@ impl App {
             character: c,
             status: s,
 
+            active_tab: Tab::Items,
+
             item_table_state: TableState::new(),
             spell_table_state: TableState::new(),
             edit_select_list_state: ListState::default().with_selected(Some(0)),
             note_scrollbar_state: ScrollbarState::default(),
-
-            active_tab: Tab::Items,
+            create_item_state: CreateItemState::default(),
 
             err: None,
         })
@@ -174,7 +180,25 @@ impl App {
 
                         self.bindings_input_state.reset();
                     },
+
+                    AppMode::CreateItem => match self.create_item_state.handle() {
+                        Err(err) => self.set_err(err),
+                        Ok(expects_more) => if ! expects_more {
+                            match self.create_item_state.item() {
+                                Ok(i) => if let Some(i) = i {
+                                    self.status.items.push(i);
+                                    self.mode = AppMode::Idle;
+                                    self.create_item_state.reset();
+                                }
+                                Err(err) => self.set_err(err),
+                            }
+                        },
+                    },
+
+                    AppMode::CreateSpell => self.mode = AppMode::Idle,
+
                     AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
+
                     AppMode::EditSelection => self.handle_edit_select_events()?,
                     AppMode::Editing => {
                         if let Err(err) = self.edit_file() {
@@ -185,10 +209,11 @@ impl App {
 
                         terminal.clear()?;
                     }
+
                     AppMode::Error | AppMode::ViewItem | AppMode::ViewSpell => {
                         _ = {
                             event::read()?; // we don't care about the actual key-press here
-                            self.mode = AppMode::Idle;
+                            self.mode = AppMode::Idle; // todo: we should have this return to the previous state (when creating items for example)
                         }
                     }
                     AppMode::Exiting => terminal.clear()?,
@@ -336,7 +361,11 @@ impl App {
                     Tab::Spells => self.mode = AppMode::Input(InputType::Cast),
                     Tab::Notes => {},
                 },
-                KeyCode::Char('n') => panic!("not yet implementde"),
+                KeyCode::Char('n') => match self.active_tab {
+                    Tab::Items => self.mode = AppMode::CreateItem,
+                    Tab::Spells => self.mode = AppMode::CreateSpell,
+                    Tab::Notes => {},
+                },
                 KeyCode::Enter => match self.active_tab {
                     Tab::Items => self.mode = AppMode::ViewItem,
                     Tab::Spells => self.mode = AppMode::ViewSpell,
@@ -995,6 +1024,18 @@ impl App {
         frame.render_widget(content, area);
     }
 
+    fn render_create_item(&mut self, frame: &mut Frame) {
+        let area = frame.area()
+            .centered(Length(70), Length(10));
+        let create_item = CreateItem::default()
+            .block(Self::default_block().title(" new item ").title_bottom(" press ESC to cancel "));
+
+        frame.render_widget(Clear{}, area);
+        frame.render_stateful_widget(create_item, area, &mut self.create_item_state);
+
+        self.create_item_state.set_cursor_position(frame);
+    }
+
     fn render(&mut self, frame: &mut Frame) -> Result<(), AppError> {
         let area = frame.area();
 
@@ -1037,10 +1078,16 @@ impl App {
 
         match self.mode {
             AppMode::Input(t) => self.render_input(frame, bindings, t),
-            AppMode::DeathSavingThrows => self.render_death_saving(frame),
-            AppMode::EditSelection => self.render_edit_list(frame),
+
             AppMode::ViewItem => self.render_item_view(frame),
             AppMode::ViewSpell => self.render_spell_view(frame),
+
+            AppMode::CreateItem => self.render_create_item(frame),
+
+            AppMode::DeathSavingThrows => self.render_death_saving(frame),
+
+            AppMode::EditSelection => self.render_edit_list(frame),
+
             AppMode::Error => {
                 if let Some(err) = &self.err {
                     Self::render_popup(frame, format!("{}", err));
