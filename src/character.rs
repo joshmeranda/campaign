@@ -6,7 +6,7 @@ use ratatui::style::palette::tailwind::{GREEN, RED, SLATE, YELLOW};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{
-    Block, Clear, Gauge, List, ListState, Paragraph, Row, Scrollbar, ScrollbarOrientation,
+    Block, Clear, Gauge, Paragraph, Row, Scrollbar, ScrollbarOrientation,
     ScrollbarState, Table, TableState, Tabs, Wrap,
 };
 use ratatui::{layout, DefaultTerminal, Frame};
@@ -19,7 +19,7 @@ use crate::character::utils::to_roman_numerals;
 use crate::error::AppError;
 use crate::types::{Ability, Character, Status, Item};
 use crate::widgets::input::{Input,  InputState, MultiInput, MultiInputState, HandleState, InputHandler};
-// use crate::widgets::item_create::{CreateItem, CreateItemState};
+use crate::widgets::options::{OptionBinding, Options, OptionsState};
 
 mod utils {
     use ratatui::style::Color;
@@ -38,6 +38,7 @@ mod utils {
         }
     }
 
+    // todo: consider changing to 🄫 ① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨
     // Provides a limited and naive support for converting a number to a roman numeral. Only supports 0 < n < 10
     pub fn to_roman_numerals(n: usize) -> &'static str {
         match n {
@@ -82,7 +83,7 @@ enum AppMode {
 
     DeathSavingThrows,
 
-    EditSelection,
+    EditOptions,
     Editing,
 
     Error(Box<Self>),
@@ -110,7 +111,7 @@ pub struct App {
     bindings_input_state: InputState,
     item_table_state: TableState,
     spell_table_state: TableState,
-    edit_select_list_state: ListState,
+    edit_options_state: OptionsState,
     note_scrollbar_state: ScrollbarState,
     create_item_state: MultiInputState<3>,
 
@@ -118,6 +119,7 @@ pub struct App {
     err: Option<AppError>,
 }
 
+// todo: consider splitting this up since it is hard to navigate
 impl App {
     pub fn new(
         character_path: std::path::PathBuf,
@@ -147,7 +149,7 @@ impl App {
 
             item_table_state: TableState::new(),
             spell_table_state: TableState::new(),
-            edit_select_list_state: ListState::default().with_selected(Some(0)),
+            edit_options_state: OptionsState::default(),
             note_scrollbar_state: ScrollbarState::default(),
             create_item_state: MultiInputState::default(),
 
@@ -201,12 +203,22 @@ impl App {
 
                     AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
 
-                    AppMode::EditSelection => self.handle_edit_select_events()?,
+                    AppMode::EditOptions => match self.edit_options_state.handle()? {
+                        HandleState::Expecting => {},
+                        HandleState::Done => match self.edit_options_state.selected() {
+                            None => { },
+                            Some(c) => if let Some(_) = Self::EDIT_OPTIONS.iter().find(|o| o.0 == c) {
+                                self.mode = AppMode::Editing;
+                            }
+                        },
+                        HandleState::Cancelled => self.mode = AppMode::Idle,
+                    },
                     AppMode::Editing => {
                         if let Err(err) = self.edit_file() {
                             self.set_err(err);
                         } else {
                             self.mode = AppMode::Idle;
+                            self.edit_options_state.reset();
                         }
 
                         terminal.clear()?;
@@ -247,27 +259,31 @@ impl App {
     }
 
     fn edit_file(&mut self) -> Result<(), AppError> {
-        if self.edit_select_list_state.selected().is_none() {
+        if self.edit_options_state.selected().is_none() {
             return Ok(());
         }
 
-        let selected = self.edit_select_list_state.selected().unwrap();
+        let selected = match self.edit_options_state.selected() {
+            None => return Ok(()),
+            Some(c) => c,
+        };
 
         let path = match selected {
-            0 => {
+            'c' => {
                 let s = serde_yaml::to_string(&self.character)?;
                 fs::write(&self.character_path, s)?;
 
                 self.character_path.clone()
             }
-            1 => {
+            's' => {
                 let s = serde_yaml::to_string(&self.status)?;
                 fs::write(&self.status_path, s)?;
 
                 self.status_path.clone()
             }
-            2 => self.notes_path.clone(),
-            _ => panic!("selection should never be greate than 2"),
+            'n' => self.notes_path.clone(),
+
+            _ => return Err(AppError::Error(String::from("selection should always be in [c s n]"))),
         };
 
         let path_name = path.to_str().unwrap();
@@ -277,8 +293,8 @@ impl App {
             .status()?;
 
         match selected {
-            0 => self.character = Self::load_from_path(path)?,
-            1 => self.status = Self::load_from_path(path)?,
+            'c' => self.character = Self::load_from_path(path)?,
+            's' => self.status = Self::load_from_path(path)?,
             _ => {}
         }
 
@@ -348,7 +364,7 @@ impl App {
                         self.status.rage();
                     }
                 }
-                KeyCode::Char('e') => self.mode = AppMode::EditSelection,
+                KeyCode::Char('e') => self.mode = AppMode::EditOptions,
                 KeyCode::Char('c') => match self.active_tab {
                     Tab::Items => {
                         if let Some(i) = self.item_table_state.selected() {
@@ -462,23 +478,6 @@ impl App {
         Ok(())
     }
 
-    fn handle_edit_select_events(&mut self) -> Result<(), AppError> {
-        if let Some(key) = event::read()?.as_key_press_event() {
-            match key.code {
-                KeyCode::Up => self.edit_select_list_state.select_previous(),
-                KeyCode::Down => self.edit_select_list_state.select_next(),
-                KeyCode::Esc => {
-                    self.mode = AppMode::Idle;
-                    self.edit_select_list_state.select(Some(0));
-                }
-                KeyCode::Enter => self.mode = AppMode::Editing,
-                _ => {}
-            }
-        }
-
-        Ok(())
-    }
-
     fn handle_death_saving_events(&mut self) -> Result<(), AppError> {
         if let Some(key) = event::read()?.as_key_press_event() {
             match key.code {
@@ -522,30 +521,28 @@ impl App {
         );
     }
 
+    const EDIT_OPTIONS: [OptionBinding<'_>; 3] = [
+        ('c', "Character - semi-permanent traits that change rarely"),
+        ('s', "State - ephemeral values which may change on the fly"),
+        ('n', "Notes - notes about your character"),
+    ];
+
     // todo: replace up and down with letter selection
     fn render_edit_list(&mut self, frame: &mut Frame) {
         let area = frame.area();
         let area = area.centered(Percentage(60), Length(5));
 
-        let items = [
-            "Character - semi-permanent traits that change rarely",
-            "State - ephemeral values which may change on the fly",
-            "Notes - notes about your character",
-        ];
 
         frame.render_widget(Clear, area);
 
-        frame.render_stateful_widget(
-            List::new(items)
+        frame.render_widget(
+            Options::new(Self::EDIT_OPTIONS)
                 .block(
                     Self::default_block()
                         .title(" What do you want to edit? ")
                         .title_bottom(" press ESC to cancel "),
-                )
-                .highlight_style(Modifier::REVERSED)
-                .highlight_symbol("> "),
+                ),
             area,
-            &mut self.edit_select_list_state,
         );
     }
 
@@ -1091,7 +1088,7 @@ impl App {
 
             AppMode::DeathSavingThrows => self.render_death_saving(frame),
 
-            AppMode::EditSelection => self.render_edit_list(frame),
+            AppMode::EditOptions => self.render_edit_list(frame),
 
             AppMode::Error(_) => {
                 if let Some(err) = &self.err {
