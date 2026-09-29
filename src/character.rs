@@ -17,7 +17,7 @@ use utils::color_for_damage_percent_lost;
 
 use crate::character::utils::to_roman_numerals;
 use crate::error::AppError;
-use crate::types::{Ability, Character, Item, Status};
+use crate::types::{Ability, Character, Item, Spell, Status};
 use crate::widgets::input::{
     HandleState, Input, InputHandler, InputState, MultiInput, MultiInputState,
 };
@@ -81,7 +81,10 @@ enum AppMode {
     ViewSpell,
 
     CreateItem,
+
+    CreateSpellOptions,
     CreateSpell,
+    ChooseSpell,
 
     DeathSavingThrows,
 
@@ -111,11 +114,17 @@ pub struct App {
     active_tab: Tab,
 
     bindings_input_state: InputState,
-    item_table_state: TableState,
-    spell_table_state: TableState,
+
     edit_options_state: OptionsState,
+
     note_scrollbar_state: ScrollbarState,
+
+    item_table_state: TableState,
     create_item_state: MultiInputState<3>,
+
+    spell_table_state: TableState,
+    spell_add_options: OptionsState,
+    spell_create_state: MultiInputState<8>,
 
     // todo: provide a way to de-dup errors to prevent locking the UI (like when notes file does not exist or could not be read)
     err: Option<AppError>,
@@ -142,18 +151,23 @@ impl App {
                 AppMode::default()
             },
 
-            bindings_input_state: InputState::default(),
-
             character: c,
             status: s,
 
             active_tab: Tab::Items,
 
-            item_table_state: TableState::new(),
-            spell_table_state: TableState::new(),
+            bindings_input_state: InputState::default(),
+
             edit_options_state: OptionsState::default(),
+
             note_scrollbar_state: ScrollbarState::default(),
+
+            item_table_state: TableState::new(),
             create_item_state: MultiInputState::default(),
+
+            spell_table_state: TableState::new(),
+            spell_add_options: OptionsState::default(),
+            spell_create_state: MultiInputState::default(),
 
             err: None,
         })
@@ -189,7 +203,10 @@ impl App {
                         Err(err) => self.set_err(err),
                         Ok(handle_state) => match handle_state {
                             HandleState::Expecting => {}
-                            HandleState::Cancelled => self.mode = AppMode::Idle,
+                            HandleState::Cancelled => {
+                                self.mode = AppMode::Idle;
+                                self.create_item_state.reset()
+                            }
                             HandleState::Done => {
                                 match Item::try_from(self.create_item_state.values()) {
                                     Ok(i) => {
@@ -203,7 +220,42 @@ impl App {
                         },
                     },
 
-                    AppMode::CreateSpell => self.mode = AppMode::Idle,
+                    AppMode::CreateSpellOptions => match self.spell_add_options.handle()? {
+                        HandleState::Expecting => {}
+                        HandleState::Done => match self.spell_add_options.selected() {
+                            None => {}
+                            Some(c) => {
+                                match c {
+                                    'm' => self.mode = AppMode::CreateSpell,
+                                    'c' => self.mode = AppMode::ChooseSpell,
+                                    _ => {}
+                                }
+                                self.spell_add_options.reset();
+                            }
+                        },
+                        HandleState::Cancelled => self.mode = AppMode::Idle,
+                    },
+                    AppMode::CreateSpell => match self.spell_create_state.handle() {
+                        Err(err) => self.set_err(err),
+                        Ok(handle_state) => match handle_state {
+                            HandleState::Expecting => {}
+                            HandleState::Cancelled => {
+                                self.mode = AppMode::Idle;
+                                self.spell_create_state.reset();
+                            }
+                            HandleState::Done => {
+                                match Spell::try_from(self.spell_create_state.values()) {
+                                    Ok(s) => {
+                                        self.character.spells.push(s);
+                                        self.mode = AppMode::Idle;
+                                        self.create_item_state.reset();
+                                    }
+                                    Err(err) => self.set_err(err),
+                                }
+                            }
+                        },
+                    },
+                    AppMode::ChooseSpell => {}
 
                     AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
 
@@ -399,7 +451,7 @@ impl App {
                 },
                 KeyCode::Char('n') => match self.active_tab {
                     Tab::Items => self.mode = AppMode::CreateItem,
-                    Tab::Spells => self.mode = AppMode::CreateSpell,
+                    Tab::Spells => self.mode = AppMode::CreateSpellOptions,
                     Tab::Notes => {}
                 },
                 KeyCode::Enter => match self.active_tab {
@@ -424,13 +476,7 @@ impl App {
                 },
                 KeyCode::Right => {
                     self.active_tab = match self.active_tab {
-                        Tab::Items => {
-                            if self.character.spells.len() > 0 {
-                                Tab::Spells
-                            } else {
-                                Tab::Notes
-                            }
-                        }
+                        Tab::Items => Tab::Spells,
                         Tab::Spells => Tab::Notes,
                         Tab::Notes => Tab::Items,
                     }
@@ -439,13 +485,7 @@ impl App {
                     self.active_tab = match self.active_tab {
                         Tab::Items => Tab::Notes,
                         Tab::Spells => Tab::Items,
-                        Tab::Notes => {
-                            if self.character.spells.len() > 0 {
-                                Tab::Spells
-                            } else {
-                                Tab::Items
-                            }
-                        }
+                        Tab::Notes => Tab::Spells,
                     }
                 }
 
@@ -546,10 +586,9 @@ impl App {
         ('n', "Notes - notes about your character"),
     ];
 
-    // todo: replace up and down with letter selection
-    fn render_edit_list(&mut self, frame: &mut Frame) {
-        let area = frame.area();
-        let area = area.centered(Percentage(60), Length(5));
+    // todo: center the options text
+    fn render_edit_options(&mut self, frame: &mut Frame) {
+        let area = frame.area().centered(Percentage(60), Length(5));
 
         frame.render_widget(Clear, area);
 
@@ -879,22 +918,12 @@ impl App {
     }
 
     fn render_tabs(&mut self, frame: &mut Frame, area: Rect) -> Result<(), AppError> {
-        let items = if self.character.spells.is_empty() {
-            vec!["items", "notes"]
-        } else {
-            vec!["items", "spells", "notes"]
-        };
+        let items = vec!["items", "spells", "notes"];
 
         let tab_index = match self.active_tab {
             Tab::Items => 0,
             Tab::Spells => 1,
-            Tab::Notes => {
-                if self.character.spells.len() > 0 {
-                    2
-                } else {
-                    1
-                }
-            }
+            Tab::Notes => 2,
         };
 
         let tabs = Tabs::new(items)
@@ -1061,8 +1090,50 @@ impl App {
                 .title_bottom(" press ESC to cancel "),
         );
 
-        frame.render_widget(Clear {}, area);
+        frame.render_widget(Clear, area);
         frame.render_stateful_widget(create_item, area, &mut self.create_item_state);
+
+        self.create_item_state.set_cursor_position(frame);
+    }
+
+    const SPELL_CREATE_OPTIONS: [OptionBinding<'_>; 2] =
+        [('m', "manually enter"), ('c', "choose from spell list")];
+
+    fn render_spell_options(&self, frame: &mut Frame) {
+        let area = frame.area().centered(Percentage(80), Length(15));
+
+        frame.render_widget(Clear, area);
+
+        frame.render_widget(
+            Options::new(Self::SPELL_CREATE_OPTIONS).block(
+                Self::default_block()
+                    .title(" How would you like to add a spell? ")
+                    .title_bottom(" press ESC to cancel "),
+            ),
+            area,
+        )
+    }
+
+    fn render_create_spell(&mut self, frame: &mut Frame) {
+        let area = frame.area().centered(Length(70), Length(20));
+        let create_spell = MultiInput::new([
+            "name",
+            "level",
+            "casting time",
+            "range",
+            "components",
+            "duration",
+            "description",
+            "at higher levels",
+        ])
+        .block(
+            Self::default_block()
+                .title(" new spell ")
+                .title_bottom(" press ESC to cancel "),
+        );
+
+        frame.render_widget(Clear, area);
+        frame.render_stateful_widget(create_spell, area, &mut self.spell_create_state);
 
         self.create_item_state.set_cursor_position(frame);
     }
@@ -1114,9 +1185,12 @@ impl App {
 
             AppMode::CreateItem => self.render_create_item(frame),
 
+            AppMode::CreateSpellOptions => self.render_spell_options(frame),
+            AppMode::CreateSpell => self.render_create_spell(frame),
+            // AppMode::ChooseSpell => self.render_choose_spell(frame),
             AppMode::DeathSavingThrows => self.render_death_saving(frame),
 
-            AppMode::EditOptions => self.render_edit_list(frame),
+            AppMode::EditOptions => self.render_edit_options(frame),
 
             AppMode::Error(_) => {
                 if let Some(err) = &self.err {

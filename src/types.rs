@@ -18,10 +18,53 @@ pub struct Spell {
     pub level: u8, // Level 0 denotes a Cantrip
     pub casting_time: String,
     pub range: String,
-    pub components: String,
+    pub components: Option<String>,
     pub duration: String,
     pub description: String,
     pub at_higher_levels: Option<String>,
+}
+
+impl TryFrom<[&str; 8]> for Spell {
+    type Error = AppError;
+
+    fn try_from(values: [&str; 8]) -> Result<Self, Self::Error> {
+        if values[0].is_empty() {
+            return Err(AppError::Error(String::from("item name must not be empty")));
+        }
+
+        if values[2].is_empty() {
+            return Err(AppError::Error(String::from(
+                "casting time must not be empty",
+            )));
+        }
+
+        if values[3].is_empty() {
+            return Err(AppError::Error(String::from("range must not be empty")));
+        }
+
+        if values[5].is_empty() {
+            return Err(AppError::Error(String::from("duration must not be empty")));
+        }
+
+        Ok(Spell {
+            name: String::from(values[0]),
+            level: values[1].parse::<u8>()?,
+            casting_time: String::from(values[2]),
+            range: String::from(values[3]),
+            components: if values[4].is_empty() {
+                None
+            } else {
+                Some(String::from(values[4]))
+            },
+            duration: String::from(values[5]),
+            description: String::from(values[6]),
+            at_higher_levels: if values[7].is_empty() {
+                None
+            } else {
+                Some(String::from(values[7]))
+            },
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
