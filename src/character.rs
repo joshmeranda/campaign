@@ -17,7 +17,7 @@ use utils::color_for_damage_percent_lost;
 
 use crate::character::utils::to_roman_numerals;
 use crate::error::AppError;
-use crate::types::{Ability, Character, Status, Item};
+use crate::types::{Ability, Character, Status};
 use crate::widgets::input::{Input, InputHandler, InputState};
 use crate::widgets::item_create::{CreateItem, CreateItemState};
 
@@ -69,7 +69,7 @@ enum Tab {
     Notes,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 enum AppMode {
     Idle,
     Input(InputType),
@@ -85,7 +85,7 @@ enum AppMode {
     EditSelection,
     Editing,
 
-    Error,
+    Error(Box<Self>),
     Exiting,
 }
 
@@ -170,7 +170,7 @@ impl App {
                     }
                 })?;
 
-                match self.mode {
+                match &self.mode {
                     AppMode::Idle => self.handle_events()?,
                     AppMode::Input(_) => if ! self.bindings_input_state.handle()? {
                         match self.handle_input() {
@@ -210,11 +210,14 @@ impl App {
                         terminal.clear()?;
                     }
 
-                    AppMode::Error | AppMode::ViewItem | AppMode::ViewSpell => {
-                        _ = {
+                    AppMode::Error(mode) => {
+                        event::read()?; // we don't care about the actual key-press here
+                        self.mode = (**mode).clone();
+                    },
+
+                    AppMode::ViewItem | AppMode::ViewSpell => {
                             event::read()?; // we don't care about the actual key-press here
-                            self.mode = AppMode::Idle; // todo: we should have this return to the previous state (when creating items for example)
-                        }
+                            self.mode = AppMode::Idle;
                     }
                     AppMode::Exiting => terminal.clear()?,
                 };
@@ -282,7 +285,7 @@ impl App {
 
     fn set_err(&mut self, err: AppError) {
         self.err = Some(err);
-        self.mode = AppMode::Error;
+        self.mode = AppMode::Error(Box::new(self.mode.clone()));
     }
 
     fn spell_slot_is_available(&self, slot: u8) -> bool {
@@ -1088,7 +1091,7 @@ impl App {
 
             AppMode::EditSelection => self.render_edit_list(frame),
 
-            AppMode::Error => {
+            AppMode::Error(_) => {
                 if let Some(err) = &self.err {
                     Self::render_popup(frame, format!("{}", err));
                     self.err = None;
