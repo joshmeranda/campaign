@@ -17,9 +17,9 @@ use utils::color_for_damage_percent_lost;
 
 use crate::character::utils::to_roman_numerals;
 use crate::error::AppError;
-use crate::types::{Ability, Character, Status};
-use crate::widgets::input::{Input, InputHandler, InputState};
-use crate::widgets::item_create::{CreateItem, CreateItemState};
+use crate::types::{Ability, Character, Status, Item};
+use crate::widgets::input::{Input,  InputState, MultiInput, MultiInputState, HandleState, InputHandler};
+// use crate::widgets::item_create::{CreateItem, CreateItemState};
 
 mod utils {
     use ratatui::style::Color;
@@ -112,7 +112,7 @@ pub struct App {
     spell_table_state: TableState,
     edit_select_list_state: ListState,
     note_scrollbar_state: ScrollbarState,
-    create_item_state: CreateItemState,
+    create_item_state: MultiInputState<3>,
 
     // todo: provide a way to de-dup errors to prevent locking the UI (like when notes file does not exist or could not be read)
     err: Option<AppError>,
@@ -149,7 +149,7 @@ impl App {
             spell_table_state: TableState::new(),
             edit_select_list_state: ListState::default().with_selected(Some(0)),
             note_scrollbar_state: ScrollbarState::default(),
-            create_item_state: CreateItemState::default(),
+            create_item_state: MultiInputState::default(),
 
             err: None,
         })
@@ -172,26 +172,28 @@ impl App {
 
                 match &self.mode {
                     AppMode::Idle => self.handle_events()?,
-                    AppMode::Input(_) => if ! self.bindings_input_state.handle()? {
-                        match self.handle_input() {
+                    AppMode::Input(_) => match self.bindings_input_state.handle()? {
+                        HandleState::Expecting => {},
+                        HandleState::Cancelled => self.mode = AppMode::Idle,
+                        HandleState::Done => match self.handle_input() {
                             Ok(()) => self.mode = AppMode::Idle,
                             Err(err) => self.set_err(err),
-                        }
-
-                        self.bindings_input_state.reset();
+                        },
                     },
 
                     AppMode::CreateItem => match self.create_item_state.handle() {
                         Err(err) => self.set_err(err),
-                        Ok(expects_more) => if ! expects_more {
-                            match self.create_item_state.item() {
-                                Ok(i) => if let Some(i) = i {
+                        Ok(handle_state) => match handle_state {
+                            HandleState::Expecting => {},
+                            HandleState::Cancelled => self.mode = AppMode::Idle,
+                            HandleState::Done => match Item::try_from(self.create_item_state.values()) {
+                                Ok(i) => {
                                     self.status.items.push(i);
                                     self.mode = AppMode::Idle;
                                     self.create_item_state.reset();
                                 }
                                 Err(err) => self.set_err(err),
-                            }
+                            },
                         },
                     },
 
@@ -1029,8 +1031,8 @@ impl App {
 
     fn render_create_item(&mut self, frame: &mut Frame) {
         let area = frame.area()
-            .centered(Length(70), Length(10));
-        let create_item = CreateItem::default()
+            .centered(Length(70), Length(9));
+        let create_item = MultiInput::new(["name", "count", "description"])
             .block(Self::default_block().title(" new item ").title_bottom(" press ESC to cancel "));
 
         frame.render_widget(Clear{}, area);

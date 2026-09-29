@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::AppError;
+
 macro_rules! proficiencies {
 	($($iter:expr),* $(,)?) => {
 		[
@@ -14,7 +16,12 @@ macro_rules! proficiencies {
 pub struct Spell {
     pub name: String,
     pub level: u8, // Level 0 denotes a Cantrip
+    pub casting_time: String,
+    pub range: String,
+    pub components: String,
+    pub duration: String,
     pub description: String,
+    pub at_higher_levels: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -141,6 +148,24 @@ pub struct Item {
     pub name: String,
     pub count: u8,
     pub description: String,
+}
+
+impl TryFrom<[&str; 3]> for Item {
+    type Error = AppError;
+
+    fn try_from(values: [&str; 3]) -> Result<Item, Self::Error> {
+        if values[0].is_empty() {
+            return Err(AppError::Error(String::from("item name must not be empty")))
+        }
+
+        let count = values[1].parse::<u8>()?;
+
+        Ok(Item {
+            name: String::from(values[0]),
+            count: count,
+            description: String::from(values[2])
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Default)]
