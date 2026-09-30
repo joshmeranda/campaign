@@ -1115,7 +1115,7 @@ impl App {
     }
 
     fn render_create_spell(&mut self, frame: &mut Frame) {
-        let area = frame.area().centered(Length(70), Length(20));
+        let area = frame.area().centered(Length(70), Length(19));
         let create_spell = MultiInput::new([
             "name",
             "level",
@@ -1188,6 +1188,7 @@ impl App {
             AppMode::CreateSpellOptions => self.render_spell_options(frame),
             AppMode::CreateSpell => self.render_create_spell(frame),
             // AppMode::ChooseSpell => self.render_choose_spell(frame),
+
             AppMode::DeathSavingThrows => self.render_death_saving(frame),
 
             AppMode::EditOptions => self.render_edit_options(frame),

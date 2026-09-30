@@ -4,7 +4,7 @@ use ratatui::layout::Constraint::{Fill, Length};
 use ratatui::layout::{Flex, Layout, Margin, Position, Rect};
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, StatefulWidget, Widget};
+use ratatui::widgets::{Block, Clear, StatefulWidget, Widget};
 use ratatui::Frame;
 
 use crate::error::AppError;
@@ -127,9 +127,9 @@ impl StatefulWidget for Input {
     // ```
     fn render(self, rect: Rect, buffer: &mut Buffer, state: &mut Self::State) {
         state.position = Some(rect.as_position());
-        let paragraph = Line::from(state.value());
+        let line = Line::from(state.value());
 
-        paragraph.render(rect, buffer)
+        line.render(rect, buffer);
     }
 }
 
