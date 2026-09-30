@@ -4,7 +4,7 @@ use ratatui::layout::Constraint::{Fill, Length};
 use ratatui::layout::{Flex, Layout, Margin, Position, Rect};
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Clear, StatefulWidget, Widget};
+use ratatui::widgets::{Block, StatefulWidget, Widget};
 use ratatui::Frame;
 
 use crate::error::AppError;
@@ -34,7 +34,7 @@ pub struct InputState {
     buffer: String,
     head: u16,
 
-    // Offset should point to the start of the input buffer. The buffer position can be determined by adding InputState.head to the ofset x.
+    // Position should point to the start of the input buffer on the terminal. The cursor position can be determined by adding InputState.head to position.x. If position is None the Input does not have focus and should not move the cursor.
     position: Option<Position>,
 }
 
@@ -56,6 +56,10 @@ impl InputState {
         &self.buffer
     }
 
+    pub fn set_position(&mut self, position: Option<Position>) {
+        self.position = position;
+    }
+
     pub fn set_cursor_position(&self, frame: &mut Frame) {
         if let Some(p) = self.position {
             frame.set_cursor_position(Position {
@@ -71,7 +75,7 @@ impl InputHandler for InputState {
         match event.code {
             KeyCode::Char(c) => {
                 if c == 'u' && event.modifiers.contains(KeyModifiers::CONTROL) {
-                    self.buffer.truncate(0);
+                    self.buffer.truncate(0); // todo: this should only remove the characters before self.head not evrything
                     self.head = 0;
                 } else {
                     self.buffer.insert(self.head as usize, c);
@@ -112,7 +116,7 @@ impl Input {
 impl StatefulWidget for Input {
     type State = InputState;
 
-    // After calling render, thje caller should also call set_cursor_position to ensure that the cursor is visible and in the correct position.
+    // After calling render, the caller should also call set_cursor_position to ensure that the cursor is visible and in the correct position.
     //
     // ```
     // use ratatui::Frame;
@@ -126,7 +130,7 @@ impl StatefulWidget for Input {
     // state.set_cursor(frame);
     // ```
     fn render(self, rect: Rect, buffer: &mut Buffer, state: &mut Self::State) {
-        state.position = Some(rect.as_position());
+        state.set_position(Some(rect.as_position()));
         let line = Line::from(state.value());
 
         line.render(rect, buffer);
@@ -247,6 +251,10 @@ impl<'a, const N: usize> MultiInput<'a, N> {
 
         let [left, right] =
             area.layout(&Layout::horizontal([Length(prompt.len() as u16), Fill(1)]).spacing(1));
+
+        if i == state.active_input {
+            state.inputs[state.active_input].set_position(Some(right.as_position()))
+        }
 
         line.render(left, buffer);
         Input::new().render(right, buffer, &mut state.inputs[i]);

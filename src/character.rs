@@ -120,7 +120,7 @@ pub struct App {
     note_scrollbar_state: ScrollbarState,
 
     item_table_state: TableState,
-    create_item_state: MultiInputState<3>,
+    item_create_state: MultiInputState<3>,
 
     spell_table_state: TableState,
     spell_add_options: OptionsState,
@@ -163,7 +163,7 @@ impl App {
             note_scrollbar_state: ScrollbarState::default(),
 
             item_table_state: TableState::new(),
-            create_item_state: MultiInputState::default(),
+            item_create_state: MultiInputState::default(),
 
             spell_table_state: TableState::new(),
             spell_add_options: OptionsState::default(),
@@ -199,20 +199,20 @@ impl App {
                         },
                     },
 
-                    AppMode::CreateItem => match self.create_item_state.handle() {
+                    AppMode::CreateItem => match self.item_create_state.handle() {
                         Err(err) => self.set_err(err),
                         Ok(handle_state) => match handle_state {
                             HandleState::Expecting => {}
                             HandleState::Cancelled => {
                                 self.mode = AppMode::Idle;
-                                self.create_item_state.reset()
+                                self.item_create_state.reset()
                             }
                             HandleState::Done => {
-                                match Item::try_from(self.create_item_state.values()) {
+                                match Item::try_from(self.item_create_state.values()) {
                                     Ok(i) => {
                                         self.status.items.push(i);
                                         self.mode = AppMode::Idle;
-                                        self.create_item_state.reset();
+                                        self.item_create_state.reset();
                                     }
                                     Err(err) => self.set_err(err),
                                 }
@@ -248,7 +248,7 @@ impl App {
                                     Ok(s) => {
                                         self.character.spells.push(s);
                                         self.mode = AppMode::Idle;
-                                        self.create_item_state.reset();
+                                        self.item_create_state.reset();
                                     }
                                     Err(err) => self.set_err(err),
                                 }
@@ -973,7 +973,7 @@ impl App {
         }
     }
 
-    fn render_input(&mut self, frame: &mut Frame, area: Rect, input_type: InputType) {
+    fn render_binding_input(&mut self, frame: &mut Frame, area: Rect, input_type: InputType) {
         let prompt = match input_type {
             InputType::Damage => "Damage",
             InputType::Heal => "Heal",
@@ -1091,9 +1091,9 @@ impl App {
         );
 
         frame.render_widget(Clear, area);
-        frame.render_stateful_widget(create_item, area, &mut self.create_item_state);
+        frame.render_stateful_widget(create_item, area, &mut self.item_create_state);
 
-        self.create_item_state.set_cursor_position(frame);
+        self.item_create_state.set_cursor_position(frame);
     }
 
     const SPELL_CREATE_OPTIONS: [OptionBinding<'_>; 2] =
@@ -1135,7 +1135,7 @@ impl App {
         frame.render_widget(Clear, area);
         frame.render_stateful_widget(create_spell, area, &mut self.spell_create_state);
 
-        self.create_item_state.set_cursor_position(frame);
+        self.spell_create_state.set_cursor_position(frame);
     }
 
     fn render(&mut self, frame: &mut Frame) -> Result<(), AppError> {
@@ -1178,7 +1178,7 @@ impl App {
         }
 
         match self.mode {
-            AppMode::Input(t) => self.render_input(frame, bindings, t),
+            AppMode::Input(t) => self.render_binding_input(frame, bindings, t),
 
             AppMode::ViewItem => self.render_item_view(frame),
             AppMode::ViewSpell => self.render_spell_view(frame),
