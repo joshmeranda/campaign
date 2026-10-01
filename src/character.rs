@@ -72,7 +72,7 @@ enum Tab {
     Notes,
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Copy, Clone)]
 enum AppMode {
     Idle,
     Input(InputType),
@@ -91,7 +91,8 @@ enum AppMode {
     EditOptions,
     Editing,
 
-    Error(Box<Self>),
+    Error,
+
     Exiting,
 }
 
@@ -99,6 +100,12 @@ impl Default for AppMode {
     fn default() -> Self {
         Self::Idle
     }
+}
+
+#[derive(Default)]
+struct ErrState {
+    err: Option<AppError>,
+    previous: Option<AppMode>,
 }
 
 pub struct App {
@@ -125,9 +132,11 @@ pub struct App {
     spell_table_state: TableState,
     spell_add_options: OptionsState,
     spell_create_state: MultiInputState<8>,
+    spell_choose_state: InputState,
+    spell_choose_table_state: TableState,
 
     // todo: provide a way to de-dup errors to prevent locking the UI (like when notes file does not exist or could not be read)
-    err: Option<AppError>,
+    err: ErrState,
 }
 
 // todo: consider splitting this up since it is hard to navigate
@@ -168,8 +177,10 @@ impl App {
             spell_table_state: TableState::new(),
             spell_add_options: OptionsState::default(),
             spell_create_state: MultiInputState::default(),
+            spell_choose_state: InputState::default(),
+            spell_choose_table_state: TableState::default(),
 
-            err: None,
+            err: ErrState::default(),
         })
     }
 
@@ -182,11 +193,19 @@ impl App {
             self.spell_table_state.select_first_column();
 
             while self.mode != AppMode::Exiting {
+                let mut run_err = None;
+
                 terminal.draw(|frame| {
                     if let Err(err) = self.render(frame) {
-                        self.set_err(err);
+                        run_err = Some(err);
+                        // self.set_err(err);
                     }
                 })?;
+
+                if let Some(err) = run_err {
+                    self.set_err(err);
+                    continue
+                }
 
                 match &self.mode {
                     AppMode::Idle => self.handle_events()?,
@@ -255,7 +274,7 @@ impl App {
                             }
                         },
                     },
-                    AppMode::ChooseSpell => {}
+                    AppMode::ChooseSpell => self.handle_spell_choose_events()?,
 
                     AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
 
@@ -282,9 +301,19 @@ impl App {
                         terminal.clear()?;
                     }
 
-                    AppMode::Error(mode) => {
+                    AppMode::Error => {
                         event::read()?; // we don't care about the actual key-press here
-                        self.mode = (**mode).clone();
+
+                        if let Some(previous) = self.err.previous {
+                            self.mode = match previous {
+                                AppMode::Input(k) => AppMode::Input(k),
+
+                                _ => AppMode::Idle,
+                            }
+                        }
+
+                        self.err.err = None;
+                        self.err.previous = None;
                     }
 
                     AppMode::ViewItem | AppMode::ViewSpell => {
@@ -364,8 +393,10 @@ impl App {
     }
 
     fn set_err(&mut self, err: AppError) {
-        self.err = Some(err);
-        self.mode = AppMode::Error(Box::new(self.mode.clone()));
+        self.err.err = Some(err);
+        self.err.previous = Some(self.mode);
+
+        self.mode = AppMode::Error;
     }
 
     fn spell_slot_is_available(&self, slot: u8) -> bool {
@@ -490,6 +521,25 @@ impl App {
                 }
 
                 _ => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_spell_choose_events(&mut self) -> Result<(), AppError> {
+        if let Some(key) = event::read()?.as_key_press_event() {
+            match key.code {
+                KeyCode::Up => self.spell_choose_table_state.select_previous(),
+                KeyCode::Down => self.spell_choose_table_state.select_next(),
+
+                KeyCode::Enter => {
+                    // need to fetch the needed spell and append to the list of spells
+                },
+
+                _ => if let Err(err) = self.spell_choose_state.handle_event(key) {
+                    return Err(err) // needed to deop the HandleState from the result of handle_event
+                },
             }
         }
 
@@ -878,7 +928,6 @@ impl App {
         let table = Table::new(rows, [Length(20), Length(10), Fill(1)])
             .block(Self::default_block())
             .header(header)
-            .row_highlight_style(Style::new().on_white().bold())
             .column_spacing(1)
             .style(Color::White)
             .row_highlight_style(Style::default().bg(Self::TAB_COLOR));
@@ -1138,6 +1187,34 @@ impl App {
         self.spell_create_state.set_cursor_position(frame);
     }
 
+    fn render_choose_spell(&mut self, frame: &mut Frame) -> Result<(), AppError> {
+        let area = frame.area().centered(Length(70), Length(20));
+        let mut spells = Spell::from_csv(std::path::PathBuf::from("assets/spells.csv"), |_| true)?;
+
+        spells.sort_by(|lhs, rhs| {
+            if lhs.level > rhs.level {
+                std::cmp::Ordering::Greater
+            } else if lhs.level < rhs.level {
+                std::cmp::Ordering::Less
+            } else {
+                lhs.name.cmp(&rhs.name)
+            }
+        });
+
+        let rows = spells.into_iter().map(|s| Row::new(vec![s.name, utils::to_roman_numerals(s.level as usize).to_string(), s.description]));
+
+        let table = Table::new(rows, [Length(20), Length(10), Fill(1)])
+            .block(Self::default_block())
+            .row_highlight_style(Style::new().on_white().bold())
+            .column_spacing(1)
+            .style(Color::White)
+            .row_highlight_style(Style::default().bg(Self::TAB_COLOR));
+
+        frame.render_stateful_widget(table, area, &mut self.spell_choose_table_state);
+
+        Ok(())
+    }
+
     fn render(&mut self, frame: &mut Frame) -> Result<(), AppError> {
         let area = frame.area();
 
@@ -1177,8 +1254,8 @@ impl App {
             self.render_bindings(frame, bindings);
         }
 
-        match self.mode {
-            AppMode::Input(t) => self.render_binding_input(frame, bindings, t),
+        match &self.mode {
+            AppMode::Input(t) => self.render_binding_input(frame, bindings, *t),
 
             AppMode::ViewItem => self.render_item_view(frame),
             AppMode::ViewSpell => self.render_spell_view(frame),
@@ -1187,18 +1264,17 @@ impl App {
 
             AppMode::CreateSpellOptions => self.render_spell_options(frame),
             AppMode::CreateSpell => self.render_create_spell(frame),
-            // AppMode::ChooseSpell => self.render_choose_spell(frame),
+            AppMode::ChooseSpell => self.render_choose_spell(frame)?,
 
             AppMode::DeathSavingThrows => self.render_death_saving(frame),
 
             AppMode::EditOptions => self.render_edit_options(frame),
 
-            AppMode::Error(_) => {
-                if let Some(err) = &self.err {
+            AppMode::Error => {
+                if let Some(err) = &self.err.err {
                     Self::render_popup(frame, format!("{}", err));
-                    self.err = None;
                 } else {
-                    Self::render_popup(frame, String::from("something wrong happened"));
+                    Self::render_popup(frame, String::from("something wrong happened here"));
                 }
             }
             _ => {}

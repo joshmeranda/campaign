@@ -12,6 +12,8 @@ pub enum AppError {
     InvalidInt(ParseIntError),
 
     Yaml(serde_yaml::Error),
+
+    Csv(csv::Error),
 }
 
 impl Error for AppError {}
@@ -40,6 +42,12 @@ impl From<serde_yaml::Error> for AppError {
     }
 }
 
+impl From<csv::Error> for AppError {
+    fn from (value: csv::Error) -> AppError {
+        AppError::Csv(value)
+    }
+}
+
 impl Display for AppError {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
@@ -47,6 +55,7 @@ impl Display for AppError {
             AppError::Io(err) => write!(f, "{}", err),
             AppError::InvalidInt(err) => write!(f, "{}", err),
             AppError::Yaml(err) => write!(f, "{}", err),
+            AppError::Csv(err) => write!(f, "{}", err),
         }
     }
 }

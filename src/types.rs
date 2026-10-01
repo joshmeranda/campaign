@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use csv::ReaderBuilder;
 
 use crate::error::AppError;
 
@@ -12,7 +14,7 @@ macro_rules! proficiencies {
 	}
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Spell {
     pub name: String,
     pub level: u8, // Level 0 denotes a Cantrip
@@ -22,6 +24,29 @@ pub struct Spell {
     pub duration: String,
     pub description: String,
     pub at_higher_levels: Option<String>,
+}
+
+impl Spell {
+    pub fn from_csv<P, F>(p: P, f: F) -> Result<Vec<Spell>, AppError>
+        where
+            P: AsRef<Path>,
+            F: Fn(&Spell) -> bool,
+    {
+        let file   = std::fs::File::open(p)?;
+        let mut reader = ReaderBuilder::new()
+            .has_headers(false)
+            .from_reader(file);
+
+        reader
+            .deserialize::<Spell>()
+            .try_fold(Vec::new(), |mut spells, result| -> Result<Vec<Spell>, AppError> {
+                let spell = result?;
+                if f(&spell) {
+                    spells.push(spell);
+                }
+                Ok(spells)
+            })
+    }
 }
 
 impl TryFrom<[&str; 8]> for Spell {

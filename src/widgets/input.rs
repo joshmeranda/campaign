@@ -9,12 +9,16 @@ use ratatui::Frame;
 
 use crate::error::AppError;
 
+// todo: consider adding NoMatch vairnat to disitinguish between received a value and expecting more vs value awas received but not something that is handled
+// todo: rename tosomething like HandleAction
 pub enum HandleState {
     Expecting,
     Done,
     Cancelled,
 }
 
+// todo: add default implementations for input handler for List and Table
+// todo: add ChainInputHandler (see comment above about an HandleState::Ignore variant)
 pub trait InputHandler {
     // handle reads a keyboard events and returns Some(true) the InputHanlder should expect to continue taking input. In most cases, this will be when the handler reads ENTER.
     fn handle(&mut self) -> Result<HandleState, AppError> {
