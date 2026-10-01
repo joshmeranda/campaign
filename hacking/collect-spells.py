@@ -39,7 +39,7 @@ def get_spell(endpoint: str):
 
 	try:
 		v = {
-			"endpoint": endpoint,
+			# "endpoint": endpoint,
 			"name": soup.find("div", class_="page-title").span.string,
 		}
 
@@ -47,11 +47,35 @@ def get_spell(endpoint: str):
 			return None
 
 		def get_source(d, p):
-			if "Source:" in p.string:
-				d["source"] = p.string
+			# if "Source:" in p.string:
+			# 	d["source"] = p.string
+			pass
 
 		def get_level(d, p):
-			d["level"] = p.string
+			value = "0"
+
+			if p.string.endswith("cantrip"):
+				value = "0"
+			elif p.string.startswith("1st-level"):
+				value = "1"
+			elif p.string.startswith("2nd-level"):
+				value = "2"
+			elif p.string.startswith("3rd-level"):
+				value = "3"
+			elif p.string.startswith("4th-level"):
+				value = "4"
+			elif p.string.startswith("5th-level"):
+				value = "5"
+			elif p.string.startswith("6th-level"):
+				value = "6"
+			elif p.string.startswith("7th-level"):
+				value = "7"
+			elif p.string.startswith("8th-level"):
+				value = "8"
+			elif p.string.startswith("9th-level"):
+				value = "9"
+
+			d["level"] = value
 		
 		def get_description(d, p):
 			d["description"] = p.string
@@ -84,7 +108,7 @@ def get_spell(endpoint: str):
 			except IndexError:
 				break
 	except Exception as err:
-		print(str(r.content))
+		# print(str(r.content))
 		raise err
 
 	return v
@@ -111,6 +135,8 @@ def main():
 
 	with open(SPELL_CSV, "w+") as csvfile:	
 		writer = csv.writer(csvfile)
+
+		writer.writerow(["name", "level", "casting_time", "range", "components", "duration", "description", "at_higher_levels"])
 
 		for category, endpoints in spells():
 			logger.info(f"collecting '{category}' spells")

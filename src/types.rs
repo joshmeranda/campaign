@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::{fmt::Display, path::Path};
 use csv::ReaderBuilder;
 
 use crate::error::AppError;
@@ -14,10 +14,101 @@ macro_rules! proficiencies {
 	}
 }
 
+// todo: consider changing to 🄫 ① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨
+// Provides a limited and naive support for converting a number to a roman numeral. Only supports 0 < n < 10
+pub fn to_roman_numerals(n: usize) -> &'static str {
+    match n {
+        1 => "I",
+        2 => "II",
+        3 => "III",
+        4 => "IV",
+        5 => "V",
+        6 => "VI",
+        7 => "VII",
+        8 => "VIII",
+        9 => "IX",
+        _ => panic!("number not supported, must be 0 < n < 10: {}", n),
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, PartialOrd, PartialEq, Copy, Clone)]
+pub enum SpellSlot {
+    #[serde(rename(serialize = "0"))]
+    #[serde(rename(deserialize = "0"))]
+    Cantrip,
+
+    #[serde(rename(serialize = "1"))]
+    #[serde(rename(deserialize = "1"))]
+    First,
+
+    #[serde(rename(serialize = "2"))]
+    #[serde(rename(deserialize = "2"))]
+    Second,
+
+    #[serde(rename(serialize = "3"))]
+    #[serde(rename(deserialize = "3"))]
+    Third,
+
+    #[serde(rename(serialize = "4"))]
+    #[serde(rename(deserialize = "4"))]
+    Fourth,
+
+    #[serde(rename(serialize = "5"))]
+    #[serde(rename(deserialize = "5"))]
+    Fifth,
+
+    #[serde(rename(serialize = "6"))]
+    #[serde(rename(deserialize = "6"))]
+    Sixth,
+
+    #[serde(rename(serialize = "7"))]
+    #[serde(rename(deserialize = "7"))]
+    Seventh,
+
+    #[serde(rename(serialize = "8"))]
+    #[serde(rename(deserialize = "8"))]
+    Eighth,
+
+    #[serde(rename(serialize = "9"))]
+    #[serde(rename(deserialize = "9"))]
+    Ninth,
+}
+
+impl TryFrom<u8> for SpellSlot {
+    type Error = AppError;
+
+    fn try_from(v: u8) -> Result<Self, Self::Error> {
+        match v {
+            0 => Ok(SpellSlot::Cantrip),
+            1 => Ok(SpellSlot::First),
+            2 => Ok(SpellSlot::Second),
+            3 => Ok(SpellSlot::Third),
+            4 => Ok(SpellSlot::Fourth),
+            5 => Ok(SpellSlot::Fifth),
+            6 => Ok(SpellSlot::Sixth),
+            7 => Ok(SpellSlot::Seventh),
+            8 => Ok(SpellSlot::Eighth),
+            9 => Ok(SpellSlot::Ninth),
+            _ => Err(AppError::Error(String::from("received to big spell slot"))),
+        }
+    }
+}
+
+impl Display for SpellSlot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            SpellSlot::Cantrip => "C",
+            _ => to_roman_numerals(*self as usize)
+        };
+
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Spell {
     pub name: String,
-    pub level: u8, // Level 0 denotes a Cantrip
+    pub level: SpellSlot, // Level 0 denotes a Cantrip
     pub casting_time: String,
     pub range: String,
     pub components: Option<String>,
@@ -27,6 +118,7 @@ pub struct Spell {
 }
 
 impl Spell {
+    // todo: rename
     pub fn from_csv<P, F>(p: P, f: F) -> Result<Vec<Spell>, AppError>
         where
             P: AsRef<Path>,
@@ -34,7 +126,7 @@ impl Spell {
     {
         let file   = std::fs::File::open(p)?;
         let mut reader = ReaderBuilder::new()
-            .has_headers(false)
+            // .has_headers(false)
             .from_reader(file);
 
         reader
@@ -73,7 +165,7 @@ impl TryFrom<[&str; 8]> for Spell {
 
         Ok(Spell {
             name: String::from(values[0]),
-            level: values[1].parse::<u8>()?,
+            level: SpellSlot::try_from(values[1].parse::<u8>()?)?,
             casting_time: String::from(values[2]),
             range: String::from(values[3]),
             components: if values[4].is_empty() {

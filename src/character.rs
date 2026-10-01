@@ -15,9 +15,8 @@ use std::fs;
 
 use utils::color_for_damage_percent_lost;
 
-use crate::character::utils::to_roman_numerals;
 use crate::error::AppError;
-use crate::types::{Ability, Character, Item, Spell, Status};
+use crate::types::{Ability, Character, Item, Spell, SpellSlot, Status};
 use crate::widgets::input::{
     HandleState, Input, InputHandler, InputState, MultiInput, MultiInputState,
 };
@@ -37,23 +36,6 @@ mod utils {
             Color::Green
         } else {
             Color::LightGreen
-        }
-    }
-
-    // todo: consider changing to 🄫 ① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨
-    // Provides a limited and naive support for converting a number to a roman numeral. Only supports 0 < n < 10
-    pub fn to_roman_numerals(n: usize) -> &'static str {
-        match n {
-            1 => "I",
-            2 => "II",
-            3 => "III",
-            4 => "IV",
-            5 => "V",
-            6 => "VI",
-            7 => "VII",
-            8 => "VIII",
-            9 => "IX",
-            _ => panic!("number not supported, must be 0 < n < 10: {}", n),
         }
     }
 }
@@ -198,7 +180,6 @@ impl App {
                 terminal.draw(|frame| {
                     if let Err(err) = self.render(frame) {
                         run_err = Some(err);
-                        // self.set_err(err);
                     }
                 })?;
 
@@ -399,11 +380,11 @@ impl App {
         self.mode = AppMode::Error;
     }
 
-    fn spell_slot_is_available(&self, slot: u8) -> bool {
-        slot == 0
-            || self.character.spell_slots[slot as usize - 1]
-                .saturating_sub(self.status.used_slots[slot as usize - 1])
-                > 0
+    fn spell_slot_is_available(&self, slot: SpellSlot) -> bool {
+        match slot {
+            SpellSlot::Cantrip => true,
+            _ => self.character.spell_slots[slot as usize - 1].saturating_sub(self.status.used_slots[slot as usize-1]) > 0
+        }
     }
 
     fn get_bindings(&self) -> Vec<(char, &'static str)> {
@@ -572,7 +553,7 @@ impl App {
                         )));
                     }
 
-                    if self.spell_slot_is_available(slot) {
+                    if self.spell_slot_is_available(SpellSlot::try_from(slot)?) {
                         self.status.cast(slot);
                     } else {
                         return Err(AppError::from(String::from("not enough slots available")));
@@ -816,7 +797,7 @@ impl App {
                     .block(
                         Self::default_block()
                             .title_alignment(Alignment::Left)
-                            .title(format!(" {} ", utils::to_roman_numerals(i + 1))),
+                            .title(SpellSlot::try_from((i as u8)+1).unwrap().to_string()),
                     ),
                 slot,
             );
@@ -915,12 +896,8 @@ impl App {
 
             rows.push(Row::new([
                 Span::from(spell.name.to_string()),
-                if spell.level == 0 {
-                    String::from("C")
-                } else {
-                    to_roman_numerals(spell.level as usize).to_string()
-                }
-                .fg(color),
+                spell.level.to_string()
+                    .fg(color),
                 Span::from(spell.description.clone()),
             ]));
         }
@@ -1118,7 +1095,7 @@ impl App {
                     .title(format!(
                         " {} {} ",
                         spell.name.clone(),
-                        utils::to_roman_numerals(spell.level as usize)
+                        spell.level.to_string(),
                     ))
                     .title_bottom(" press any key to exit "),
             );
@@ -1201,7 +1178,7 @@ impl App {
             }
         });
 
-        let rows = spells.into_iter().map(|s| Row::new(vec![s.name, utils::to_roman_numerals(s.level as usize).to_string(), s.description]));
+        let rows = spells.into_iter().map(|s| Row::new(vec![s.name, s.level.to_string(), s.description]));
 
         let table = Table::new(rows, [Length(20), Length(10), Fill(1)])
             .block(Self::default_block())
