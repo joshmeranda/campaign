@@ -1165,8 +1165,10 @@ impl App {
     }
 
     fn render_choose_spell(&mut self, frame: &mut Frame) -> Result<(), AppError> {
-        let area = frame.area().centered(Length(70), Length(20));
-        let mut spells = Spell::from_csv(std::path::PathBuf::from("assets/spells.csv"), |_| true)?;
+        let area = frame.area().centered(Length(100), Length(30));
+        let prefix = self.spell_choose_state.value();
+
+        let mut spells = Spell::from_csv(std::path::PathBuf::from("assets/spells.csv"), |spell| spell.name.starts_with(prefix))?;
 
         spells.sort_by(|lhs, rhs| {
             if lhs.level > rhs.level {
@@ -1178,6 +1180,16 @@ impl App {
             }
         });
 
+        let [
+            input_area,
+            table_area,
+        ] = area.layout(&Layout::vertical([Length(1), Fill(1)]));
+
+        let [
+            prompt_area,
+            input_area,
+        ] = input_area.layout(&Layout::horizontal([Length(20), Fill(1)]).spacing(1));
+
         let rows = spells.into_iter().map(|s| Row::new(vec![s.name, s.level.to_string(), s.description]));
 
         let table = Table::new(rows, [Length(20), Length(10), Fill(1)])
@@ -1187,7 +1199,12 @@ impl App {
             .style(Color::White)
             .row_highlight_style(Style::default().bg(Self::TAB_COLOR));
 
-        frame.render_stateful_widget(table, area, &mut self.spell_choose_table_state);
+        frame.render_widget(Line::from("Spell name").alignment(Alignment::Right), prompt_area);
+        frame.render_stateful_widget(Input::new(), input_area, &mut self.spell_choose_state);
+
+        self.spell_choose_state.set_cursor_position(frame);
+
+        frame.render_stateful_widget(table, table_area, &mut self.spell_choose_table_state);
 
         Ok(())
     }
