@@ -16,7 +16,7 @@ use std::fs;
 use crate::error::AppError;
 use crate::types::{Ability, Character, Item, Spell, SpellSlot, Status};
 use crate::widgets::input::{
-    HandleState, Input, InputHandler, InputState, MultiInput, MultiInputState,
+    HandleState, Input, InputHandler, InputHandlerChain, InputState, MultiInput, MultiInputState,
 };
 use crate::widgets::options::{OptionBinding, Options, OptionsState};
 
@@ -83,6 +83,12 @@ impl SpellChooseState {
     fn reset(&mut self) {
         self.input.reset();
         self.table = TableState::default();
+    }
+}
+
+impl InputHandler for SpellChooseState {
+    fn handle_event(&mut self, event: event::KeyEvent) -> Result<HandleState, AppError> {
+        InputHandlerChain::new(&mut self.table, &mut self.input).handle_event(event)
     }
 }
 
@@ -283,7 +289,25 @@ impl App {
                             }
                         },
                     },
-                    AppMode::ChooseSpell => self.handle_spell_choose_events()?,
+                    AppMode::ChooseSpell => match self.spell_choose_state.handle()? {
+                        HandleState::Handled | HandleState::Ignored => {},
+                        HandleState::Cancelled => self.mode = AppMode::Idle,
+                        HandleState::Done => {
+                            match self.spell_choose_state.table.selected() {
+                                None => {},
+                                Some(n) => {
+                                    // todo: we shuold avoid having to re-filter to select a spell
+                                    let spell = self.spell_choose_state
+                                        .filter(self.spells.iter()).nth(n).expect("bug: differing results from self.spell_choose_state.filter");
+
+                                    self.character.spells.push(spell.clone());
+                                }
+                            }
+
+                            self.spell_choose_state.reset();
+                            self.mode = AppMode::Idle;
+                        },
+                    },
 
                     AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
 
@@ -531,39 +555,6 @@ impl App {
                 }
 
                 _ => {}
-            }
-        }
-
-        Ok(())
-    }
-
-    fn handle_spell_choose_events(&mut self) -> Result<(), AppError> {
-        if let Some(key) = event::read()?.as_key_press_event() {
-            match key.code {
-                KeyCode::Up => self.spell_choose_state.table.select_previous(),
-                KeyCode::Down => self.spell_choose_state.table.select_next(),
-
-                KeyCode::Enter => {
-                    match self.spell_choose_state.table.selected() {
-                        None => {},
-                        Some(n) => {
-                            // todo: we shuold avoid having to re-filter to select a spell
-                            let spell = self.spell_choose_state
-                                .filter(self.spells.iter()).nth(n).expect("bug: differing results from self.spell_choose_state.filter");
-
-                            self.character.spells.push(spell.clone());
-                        }
-                    }
-
-                    self.spell_choose_state.reset();
-                    self.mode = AppMode::Idle;
-                },
-
-                KeyCode::Esc => self.mode = AppMode::Idle,
-
-                _ => if let Err(err) = self.spell_choose_state.input.handle_event(key) {
-                    return Err(err) // needed to deop the HandleState from the result of handle_event
-                },
             }
         }
 

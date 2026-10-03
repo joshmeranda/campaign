@@ -4,7 +4,7 @@ use ratatui::layout::Constraint::{Fill, Length};
 use ratatui::layout::{Flex, Layout, Margin, Position, Rect};
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, StatefulWidget, Widget};
+use ratatui::widgets::{Block, StatefulWidget, TableState, Widget};
 use ratatui::Frame;
 
 use crate::error::AppError;
@@ -26,7 +26,6 @@ pub enum HandleState {
 }
 
 // todo: add default implementations for input handler for List and Table
-// todo: add ChainInputHandler (see comment above about an HandleState::Ignore variant)
 pub trait InputHandler {
     // handle reads a keyboard events and returns Some(true) the InputHanlder should expect to continue taking input. In most cases, this will be when the handler reads ENTER.
     fn handle(&mut self) -> Result<HandleState, AppError> {
@@ -38,6 +37,38 @@ pub trait InputHandler {
     }
 
     fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError>;
+}
+
+impl<H: InputHandler + ?Sized> InputHandler for &mut H {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError> {
+        (**self).handle_event(event)
+    }
+}
+
+pub struct InputHandlerChain<First, Second> {
+    first: First,
+    second: Second,
+}
+
+impl<First: InputHandler, Second: InputHandler> InputHandlerChain<First, Second> {
+    pub fn new(first: First, second: Second) -> Self {
+        Self { first, second }
+    }
+
+    pub fn chain<Next: InputHandler>(self, next: Next) -> InputHandlerChain<Self, Next> {
+        InputHandlerChain::new(self, next)
+    }
+}
+
+impl<First: InputHandler, Second: InputHandler> InputHandler
+    for InputHandlerChain<First, Second>
+{
+    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError> {
+        match self.first.handle_event(event)? {
+            HandleState::Ignored => self.second.handle_event(event),
+            state => Ok(state),
+        }
+    }
 }
 
 // todo: need to support text being longer than the input widget width
@@ -293,6 +324,22 @@ impl<const N: usize> StatefulWidget for MultiInput<'_, N> {
         for (i, input_area) in areas.iter().enumerate() {
             self.render_input(*input_area, buffer, state, i);
         }
+    }
+}
+
+impl InputHandler for TableState {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError> {
+        match event.code {
+            KeyCode::Up => self.select_previous(),
+            KeyCode::Down => self.select_next(),
+
+            KeyCode::Enter => return Ok(HandleState::Done),
+            KeyCode::Esc => return Ok(HandleState::Cancelled),
+
+            _ => return Ok(HandleState::Ignored),
+        }
+
+        Ok(HandleState::Handled)
     }
 }
 
