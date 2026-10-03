@@ -12,8 +12,16 @@ use crate::error::AppError;
 // todo: consider adding NoMatch vairnat to disitinguish between received a value and expecting more vs value awas received but not something that is handled
 // todo: rename tosomething like HandleAction
 pub enum HandleState {
-    Expecting,
+    // The handler has received and delt wiuth the most recent event, and is expecting more.
+    Handled,
+
+    // The handler has recevied an event, but it does not have a use for it.
+    Ignored,
+
+    // The event handler is no longer receiving events, and the result is useable.
     Done,
+
+    // The event handler is no longer receiving events, and the result ignored.
     Cancelled,
 }
 
@@ -25,7 +33,7 @@ pub trait InputHandler {
         if let Some(key) = event::read()?.as_key_press_event() {
             self.handle_event(key)
         } else {
-            Ok(HandleState::Expecting)
+            Ok(HandleState::Handled)
         }
     }
 
@@ -102,10 +110,10 @@ impl InputHandler for InputState {
 
             KeyCode::Esc => return Ok(HandleState::Cancelled),
 
-            _ => {}
+            _ => return Ok(HandleState::Ignored),
         }
 
-        Ok(HandleState::Expecting)
+        Ok(HandleState::Handled)
     }
 }
 
@@ -217,7 +225,7 @@ impl<const N: usize> InputHandler for MultiInputState<N> {
             _ => return self.inputs[self.active_input].handle_event(event),
         };
 
-        Ok(HandleState::Expecting)
+        Ok(HandleState::Handled)
     }
 }
 

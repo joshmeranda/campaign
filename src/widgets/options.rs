@@ -30,16 +30,14 @@ impl OptionsState {
 impl InputHandler for OptionsState {
     fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError> {
         match event.code {
-            KeyCode::Esc => return Ok(HandleState::Cancelled),
+            KeyCode::Esc => Ok(HandleState::Cancelled),
             KeyCode::Char(c) => {
                 self.selected = Some(c);
-                return Ok(HandleState::Done);
+                Ok(HandleState::Done)
             }
 
-            _ => {}
+            _ => Ok(HandleState::Ignored),
         }
-
-        Ok(HandleState::Expecting)
     }
 }
 

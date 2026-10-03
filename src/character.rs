@@ -193,7 +193,8 @@ impl App {
                 match &self.mode {
                     AppMode::Idle => self.handle_events()?,
                     AppMode::Input(_) => match self.bindings_input_state.handle()? {
-                        HandleState::Expecting => {}
+                        HandleState::Handled => {}
+                        HandleState::Ignored => {},
                         HandleState::Cancelled => self.mode = AppMode::Idle,
                         HandleState::Done => match self.handle_input() {
                             Ok(()) => self.mode = AppMode::Idle,
@@ -204,7 +205,8 @@ impl App {
                     AppMode::CreateItem => match self.item_create_state.handle() {
                         Err(err) => self.set_err(err),
                         Ok(handle_state) => match handle_state {
-                            HandleState::Expecting => {}
+                            HandleState::Handled => {}
+                        HandleState::Ignored => {},
                             HandleState::Cancelled => {
                                 self.mode = AppMode::Idle;
                                 self.item_create_state.reset()
@@ -223,7 +225,8 @@ impl App {
                     },
 
                     AppMode::CreateSpellOptions => match self.spell_add_options.handle()? {
-                        HandleState::Expecting => {}
+                        HandleState::Handled => {}
+                        HandleState::Ignored => {},
                         HandleState::Done => match self.spell_add_options.selected() {
                             None => {}
                             Some(c) => {
@@ -262,7 +265,8 @@ impl App {
                     AppMode::CreateSpell => match self.spell_create_state.handle() {
                         Err(err) => self.set_err(err),
                         Ok(handle_state) => match handle_state {
-                            HandleState::Expecting => {}
+                            HandleState::Handled => {}
+                            HandleState::Ignored => {},
                             HandleState::Cancelled => {
                                 self.mode = AppMode::Idle;
                                 self.spell_create_state.reset();
@@ -284,7 +288,8 @@ impl App {
                     AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
 
                     AppMode::EditOptions => match self.edit_options_state.handle()? {
-                        HandleState::Expecting => {}
+                        HandleState::Handled => {}
+                        HandleState::Ignored => {},
                         HandleState::Done => match self.edit_options_state.selected() {
                             None => {}
                             Some(c) => {
