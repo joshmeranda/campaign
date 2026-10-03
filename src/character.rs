@@ -252,7 +252,15 @@ impl App {
                                     'c' => {
                                         self.mode = AppMode::ChooseSpell;
 
-                                        let mut spells = Spell::from_csv(std::path::PathBuf::from("assets/spells.csv"))?;
+                                        let mut spells = match Spell::from_csv(std::path::PathBuf::from("assets/spells.csv")) {
+                                            Ok(s) => s,
+                                            Err(err) => {
+                                                self.mode = AppMode::Idle;
+                                                self.set_err(err);
+                                                continue;
+                                            },
+                                        };
+
                                         spells.sort_by(|lhs, rhs| {
                                             if lhs.level > rhs.level {
                                                 std::cmp::Ordering::Greater
