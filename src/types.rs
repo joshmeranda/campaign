@@ -119,10 +119,9 @@ pub struct Spell {
 
 impl Spell {
     // todo: rename
-    pub fn from_csv<P, F>(p: P, f: F) -> Result<Vec<Spell>, AppError>
+    pub fn from_csv<P>(p: P) -> Result<Vec<Spell>, AppError>
         where
             P: AsRef<Path>,
-            F: Fn(&Spell) -> bool,
     {
         let file   = std::fs::File::open(p)?;
         let mut reader = ReaderBuilder::new()
@@ -132,10 +131,7 @@ impl Spell {
         reader
             .deserialize::<Spell>()
             .try_fold(Vec::new(), |mut spells, result| -> Result<Vec<Spell>, AppError> {
-                let spell = result?;
-                if f(&spell) {
-                    spells.push(spell);
-                }
+                spells.push(result?);
                 Ok(spells)
             })
     }

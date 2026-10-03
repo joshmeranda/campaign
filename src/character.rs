@@ -85,6 +85,35 @@ impl Default for AppMode {
 }
 
 #[derive(Default)]
+struct SpellChooseState {
+    input: InputState,
+    table: TableState,
+
+    spell_cache: Option<Vec<Spell>>,
+}
+
+impl SpellChooseState {
+    fn reset(&mut self) {
+        self.input.reset();
+        self.table = TableState::default();
+    }
+
+    fn get_spells(&mut self) -> Result<std::slice::Iter<Spell>, AppError> {
+        if let None = self.spell_cache {
+            self.spell_cache = Some(Spell::from_csv(std::path::PathBuf::from("assets/spells.csv"))?);
+        }
+    
+        let s = Ok(self.spell_cache.unwrap() );
+
+        s
+    }
+
+    fn get_filtered_spells(&self) -> Result<Vec<Spell>, AppError> {
+        let spells = 
+    }
+}
+
+#[derive(Default)]
 struct ErrState {
     err: Option<AppError>,
     previous: Option<AppMode>,
@@ -114,8 +143,7 @@ pub struct App {
     spell_table_state: TableState,
     spell_add_options: OptionsState,
     spell_create_state: MultiInputState<8>,
-    spell_choose_state: InputState,
-    spell_choose_table_state: TableState,
+    spell_choose_state: SpellChooseState,
 
     // todo: provide a way to de-dup errors to prevent locking the UI (like when notes file does not exist or could not be read)
     err: ErrState,
@@ -159,8 +187,7 @@ impl App {
             spell_table_state: TableState::new(),
             spell_add_options: OptionsState::default(),
             spell_create_state: MultiInputState::default(),
-            spell_choose_state: InputState::default(),
-            spell_choose_table_state: TableState::default(),
+            spell_choose_state: SpellChooseState::default(),
 
             err: ErrState::default(),
         })
@@ -511,14 +538,14 @@ impl App {
     fn handle_spell_choose_events(&mut self) -> Result<(), AppError> {
         if let Some(key) = event::read()?.as_key_press_event() {
             match key.code {
-                KeyCode::Up => self.spell_choose_table_state.select_previous(),
-                KeyCode::Down => self.spell_choose_table_state.select_next(),
+                KeyCode::Up => self.spell_choose_state.table.select_previous(),
+                KeyCode::Down => self.spell_choose_state.table.select_next(),
 
                 KeyCode::Enter => {
                     // need to fetch the needed spell and append to the list of spells
                 },
 
-                _ => if let Err(err) = self.spell_choose_state.handle_event(key) {
+                _ => if let Err(err) = self.spell_choose_state.input.handle_event(key) {
                     return Err(err) // needed to deop the HandleState from the result of handle_event
                 },
             }
@@ -1166,9 +1193,9 @@ impl App {
 
     fn render_choose_spell(&mut self, frame: &mut Frame) -> Result<(), AppError> {
         let area = frame.area().centered(Length(100), Length(30));
-        let prefix = self.spell_choose_state.value();
+        let prefix = self.spell_choose_state.input.value().to_lowercase();
 
-        let mut spells = Spell::from_csv(std::path::PathBuf::from("assets/spells.csv"), |spell| spell.name.starts_with(prefix))?;
+        let mut spells = Spell::from_csv(std::path::PathBuf::from("assets/spells.csv"), |spell| spell.name.to_uppercase().starts_with(&prefix))?;
 
         spells.sort_by(|lhs, rhs| {
             if lhs.level > rhs.level {
@@ -1200,11 +1227,11 @@ impl App {
             .row_highlight_style(Style::default().bg(Self::TAB_COLOR));
 
         frame.render_widget(Line::from("Spell name").alignment(Alignment::Right), prompt_area);
-        frame.render_stateful_widget(Input::new(), input_area, &mut self.spell_choose_state);
+        frame.render_stateful_widget(Input::new(), input_area, &mut self.spell_choose_state.input);
 
-        self.spell_choose_state.set_cursor_position(frame);
+        self.spell_choose_state.input.set_cursor_position(frame);
 
-        frame.render_stateful_widget(table, table_area, &mut self.spell_choose_table_state);
+        frame.render_stateful_widget(table, table_area, &mut self.spell_choose_state.table);
 
         Ok(())
     }
