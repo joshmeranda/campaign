@@ -14,23 +14,6 @@ macro_rules! proficiencies {
 	}
 }
 
-// todo: consider changing to 🄫 ① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨
-// Provides a limited and naive support for converting a number to a roman numeral. Only supports 0 < n < 10
-pub fn to_roman_numerals(n: usize) -> &'static str {
-    match n {
-        1 => "I",
-        2 => "II",
-        3 => "III",
-        4 => "IV",
-        5 => "V",
-        6 => "VI",
-        7 => "VII",
-        8 => "VIII",
-        9 => "IX",
-        _ => panic!("number not supported, must be 0 < n < 10: {}", n),
-    }
-}
-
 #[derive(Deserialize, Serialize, Debug, PartialOrd, PartialEq, Copy, Clone)]
 pub enum SpellSlot {
     #[serde(rename(serialize = "0"))]
@@ -98,7 +81,15 @@ impl Display for SpellSlot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
             SpellSlot::Cantrip => "C",
-            _ => to_roman_numerals(*self as usize)
+            SpellSlot::First => "I",
+            SpellSlot::Second => "II",
+            SpellSlot::Third => "III",
+            SpellSlot::Fourth => "IV",
+            SpellSlot::Fifth => "V",
+            SpellSlot::Sixth => "VI",
+            SpellSlot::Seventh => "VII",
+            SpellSlot::Eighth => "VIII",
+            SpellSlot::Ninth => "IX",   
         };
 
         write!(f, "{}", s)

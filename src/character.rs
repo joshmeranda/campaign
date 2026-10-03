@@ -13,32 +13,12 @@ use ratatui::{layout, DefaultTerminal, Frame};
 use serde::de::DeserializeOwned;
 use std::fs;
 
-use utils::color_for_damage_percent_lost;
-
 use crate::error::AppError;
 use crate::types::{Ability, Character, Item, Spell, SpellSlot, Status};
 use crate::widgets::input::{
     HandleState, Input, InputHandler, InputState, MultiInput, MultiInputState,
 };
 use crate::widgets::options::{OptionBinding, Options, OptionsState};
-
-mod utils {
-    use ratatui::style::Color;
-
-    pub fn color_for_damage_percent_lost(percent_lost: f32) -> Color {
-        if percent_lost >= 0.90 {
-            Color::Red
-        } else if percent_lost >= 0.75 {
-            Color::Yellow
-        } else if percent_lost >= 0.50 {
-            Color::LightYellow
-        } else if percent_lost != 0.0 {
-            Color::Green
-        } else {
-            Color::LightGreen
-        }
-    }
-}
 
 #[derive(PartialEq, Copy, Clone)]
 enum InputType {
@@ -692,7 +672,17 @@ impl App {
 
     fn render_header_name(&self, frame: &mut Frame, area: Rect) {
         let percent_lost = self.status.damage as f32 / self.character.max_hp as f32;
-        let health_color = color_for_damage_percent_lost(percent_lost);
+        let health_color = if percent_lost >= 0.90 {
+            Color::Red
+        } else if percent_lost >= 0.75 {
+            Color::Yellow
+        } else if percent_lost >= 0.50 {
+            Color::LightYellow
+        } else if percent_lost != 0.0 {
+            Color::Green
+        } else {
+            Color::LightGreen
+        };
 
         frame.render_widget(
             Self::default_block().title(format!(" {} ", self.character.name)),
