@@ -675,9 +675,8 @@ impl App {
         ('n', "Notes - notes about your character"),
     ];
 
-    // todo: center the options text
     fn render_edit_options(&mut self, frame: &mut Frame) {
-        let area = frame.area().centered(Percentage(60), Length(5));
+        let area = frame.area().centered(Percentage(60), Length(7));
 
         frame.render_widget(Clear, area);
 
@@ -1184,7 +1183,7 @@ impl App {
         [('m', "manually enter"), ('c', "choose from spell list")];
 
     fn render_spell_options(&self, frame: &mut Frame) {
-        let area = frame.area().centered(Percentage(80), Length(15));
+        let area = frame.area().centered(Percentage(50), Length(6));
 
         frame.render_widget(Clear, area);
 
