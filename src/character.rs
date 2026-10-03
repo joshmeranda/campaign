@@ -88,28 +88,21 @@ impl Default for AppMode {
 struct SpellChooseState {
     input: InputState,
     table: TableState,
-
-    spell_cache: Option<Vec<Spell>>,
 }
 
 impl SpellChooseState {
+    fn filter<'a, I>(&self, spells: I) -> impl Iterator<Item = &'a Spell>
+    where
+        I: Iterator<Item = &'a Spell>
+    {
+        let prefix = self.input.value().to_lowercase();
+
+        spells.filter(move |spell| spell.name.to_lowercase().starts_with(&prefix))
+    }
+
     fn reset(&mut self) {
         self.input.reset();
         self.table = TableState::default();
-    }
-
-    fn get_spells(&mut self) -> Result<std::slice::Iter<Spell>, AppError> {
-        if let None = self.spell_cache {
-            self.spell_cache = Some(Spell::from_csv(std::path::PathBuf::from("assets/spells.csv"))?);
-        }
-    
-        let s = Ok(self.spell_cache.unwrap() );
-
-        s
-    }
-
-    fn get_filtered_spells(&self) -> Result<Vec<Spell>, AppError> {
-        let spells = 
     }
 }
 
@@ -144,6 +137,7 @@ pub struct App {
     spell_add_options: OptionsState,
     spell_create_state: MultiInputState<8>,
     spell_choose_state: SpellChooseState,
+    spells: Vec<Spell>,
 
     // todo: provide a way to de-dup errors to prevent locking the UI (like when notes file does not exist or could not be read)
     err: ErrState,
@@ -188,6 +182,7 @@ impl App {
             spell_add_options: OptionsState::default(),
             spell_create_state: MultiInputState::default(),
             spell_choose_state: SpellChooseState::default(),
+            spells: Vec::default(),
 
             err: ErrState::default(),
         })
@@ -254,10 +249,24 @@ impl App {
                             Some(c) => {
                                 match c {
                                     'm' => self.mode = AppMode::CreateSpell,
-                                    'c' => self.mode = AppMode::ChooseSpell,
+                                    'c' => {
+                                        self.mode = AppMode::ChooseSpell;
+
+                                        let mut spells = Spell::from_csv(std::path::PathBuf::from("assets/spells.csv"))?;
+                                        spells.sort_by(|lhs, rhs| {
+                                            if lhs.level > rhs.level {
+                                                std::cmp::Ordering::Greater
+                                            } else if lhs.level < rhs.level {
+                                                std::cmp::Ordering::Less
+                                            } else {
+                                                lhs.name.cmp(&rhs.name)
+                                            }
+                                        });
+
+                                        self.spells = spells;
+                                    }
                                     _ => {}
                                 }
-                                self.spell_add_options.reset();
                             }
                         },
                         HandleState::Cancelled => self.mode = AppMode::Idle,
@@ -542,8 +551,22 @@ impl App {
                 KeyCode::Down => self.spell_choose_state.table.select_next(),
 
                 KeyCode::Enter => {
-                    // need to fetch the needed spell and append to the list of spells
+                    match self.spell_choose_state.table.selected() {
+                        None => {},
+                        Some(n) => {
+                            // todo: we shuold avoid having to re-filter to select a spell
+                            let spell = self.spell_choose_state
+                                .filter(self.spells.iter()).nth(n).expect("bug: differing results from self.spell_choose_state.filter");
+
+                            self.character.spells.push(spell.clone());
+                        }
+                    }
+
+                    self.spell_choose_state.reset();
+                    self.mode = AppMode::Idle;
                 },
+
+                KeyCode::Esc => self.mode = AppMode::Idle,
 
                 _ => if let Err(err) = self.spell_choose_state.input.handle_event(key) {
                     return Err(err) // needed to deop the HandleState from the result of handle_event
@@ -1193,40 +1216,31 @@ impl App {
 
     fn render_choose_spell(&mut self, frame: &mut Frame) -> Result<(), AppError> {
         let area = frame.area().centered(Length(100), Length(30));
-        let prefix = self.spell_choose_state.input.value().to_lowercase();
-
-        let mut spells = Spell::from_csv(std::path::PathBuf::from("assets/spells.csv"), |spell| spell.name.to_uppercase().starts_with(&prefix))?;
-
-        spells.sort_by(|lhs, rhs| {
-            if lhs.level > rhs.level {
-                std::cmp::Ordering::Greater
-            } else if lhs.level < rhs.level {
-                std::cmp::Ordering::Less
-            } else {
-                lhs.name.cmp(&rhs.name)
-            }
-        });
 
         let [
             input_area,
             table_area,
-        ] = area.layout(&Layout::vertical([Length(1), Fill(1)]));
+        ] = area.inner(Margin{horizontal: 1, vertical: 1}).layout(&Layout::vertical([Length(1), Fill(1)]));
 
         let [
             prompt_area,
             input_area,
         ] = input_area.layout(&Layout::horizontal([Length(20), Fill(1)]).spacing(1));
 
-        let rows = spells.into_iter().map(|s| Row::new(vec![s.name, s.level.to_string(), s.description]));
+        let rows = self.spell_choose_state
+            .filter(self.spells.iter())
+            .map(|s| Row::new(vec![s.name.clone(), s.level.to_string(), s.description.clone()]));
 
         let table = Table::new(rows, [Length(20), Length(10), Fill(1)])
-            .block(Self::default_block())
             .row_highlight_style(Style::new().on_white().bold())
             .column_spacing(1)
             .style(Color::White)
             .row_highlight_style(Style::default().bg(Self::TAB_COLOR));
 
-        frame.render_widget(Line::from("Spell name").alignment(Alignment::Right), prompt_area);
+        frame.render_widget(Clear, area);
+        frame.render_widget(Self::default_block().title(" press ENTER to choose a spell ").title_bottom(" press ESC to cancel "), area);
+
+        frame.render_widget(Line::from("Spell name".bg(Color::White).fg(Color::Black)).alignment(Alignment::Right), prompt_area);
         frame.render_stateful_widget(Input::new(), input_area, &mut self.spell_choose_state.input);
 
         self.spell_choose_state.input.set_cursor_position(frame);

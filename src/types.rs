@@ -105,7 +105,7 @@ impl Display for SpellSlot {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Spell {
     pub name: String,
     pub level: SpellSlot, // Level 0 denotes a Cantrip
