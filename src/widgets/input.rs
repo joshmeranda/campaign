@@ -1,5 +1,3 @@
-use std::array::from_fn;
-
 use crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Constraint::{Fill, Length};
@@ -55,10 +53,6 @@ pub struct InputHandlerChain<First, Second> {
 impl<First: InputHandler, Second: InputHandler> InputHandlerChain<First, Second> {
     pub fn new(first: First, second: Second) -> Self {
         Self { first, second }
-    }
-
-    pub fn chain<Next: InputHandler>(self, next: Next) -> InputHandlerChain<Self, Next> {
-        InputHandlerChain::new(self, next)
     }
 }
 

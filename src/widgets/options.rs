@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Rect};
-use ratatui::layout::Constraint::{Fill, Length, Percentage};
+use ratatui::layout::Constraint::{Fill, Length};
 use ratatui::style::Stylize;
 use ratatui::layout::Margin;
 use ratatui::text::{Line, Text};
