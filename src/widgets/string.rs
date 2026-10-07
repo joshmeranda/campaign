@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 struct Window {
     start: usize,
     width: usize,
@@ -17,52 +17,118 @@ impl Window {
 	}
 }
 
-#[derive(Debug, PartialEq)]
-struct WindowedString {
+#[derive(Default, Debug, PartialEq)]
+pub struct WindowedString {
     buffer: String,
 
     head: usize,
-    window: Window,
+
+	// Window width will not be known untl we attempt to render the widget= and so is None until set.
+	window: Option<Window>,
 }
 
 impl WindowedString {
-	fn next(&mut self) {
+	pub fn next(&mut self) {
 		self.head = self.head.saturating_add(1).min(self.buffer.len());
 
-		if !self.window.contains(self.head) {
-			self.window = self.window.shift(1);
+		if let Some(window) = &self.window {
+			if !window.contains(self.head) {
+				self.window = Some(window.shift(1));
+			}
 		}
 	}
 
-	fn previous(&mut self) {
+	pub fn previous(&mut self) {
 		self.head = self.head.saturating_sub(1);
 
-		if !self.window.contains(self.head) {
-			self.window = self.window.shift(-1)
+		if let Some(window) = &self.window {
+			if !window.contains(self.head) {
+				self.window = Some(window.shift(-1))
+			}
 		}
 	}
 
-	fn value(&self) -> String {
-		if self.buffer.len() < self.window.width {
-			return self.buffer.clone();
+	pub fn insert(&mut self, c: char) {
+		self.buffer.insert(self.head, c);
+		self.next();
+	}
+
+	pub fn remove(&mut self) {
+		self.buffer.remove(self.head);
+		self.previous();
+	}
+
+	pub fn remove_to_start(&mut self) {
+		self.buffer = String::from(&self.buffer[self.head..]);
+		self.head = 0;
+	}
+
+	pub fn value(&self) -> String { // todo: would love to return an &str here
+		match &self.window {
+			Some(window) => {
+				if self.buffer.len() < window.width {
+					return self.buffer.clone();
+				}
+
+				let mut s = String::from(&self.buffer[window.start..window.start + window.width]);
+
+				if window.start > 0 {
+					s.replace_range(0..1, "…");
+				}
+
+				if window.start + window.width < self.buffer.len() {
+					s.replace_range(s.len()-1..s.len(), "…");
+				}
+
+				s
+			},
+			None => self.buffer.clone(),
 		}
-
-		let mut s = String::from(&self.buffer[self.window.start..self.window.start + self.window.width]);
-
-		if self.window.start > 0 {
-			s.replace_range(0..1, "…");
-		}
-
-		if self.window.start + self.window.width < self.buffer.len() {
-			s.replace_range(s.len()-1..s.len(), "…");
-		}
-
-		s
     }
+
+	pub fn full_value(&self) -> &str {
+		&self.buffer
+	}
+
+	pub fn set_width(&mut self, width: usize) {
+		self.window = Some(match &self.window {
+			Some(window) => {
+				let start = if width >= self.buffer.len().saturating_sub(1) {
+					window.start
+				} else if window.start + width > self.buffer.len() {
+					self.buffer.len() - width
+				} else if window.start + width <= self.head {
+					if self.head == self.buffer.len() {
+						self.head - width
+					} else {
+						self.head - width + 1
+					}
+				} else {
+					window.start
+				};
+
+				Window {
+					start,
+					width
+				}
+			}
+			None => Window{
+				start: self.head,
+				width: width,
+			}
+		})
+	}
+
+	pub fn cursor_offset(&self) -> u16 {
+		match self.window {
+			None => 0,
+			Some(window) => (self.head - window.start) as u16
+		}
+	}
 }
 
 #[cfg(test)]
-mod teest_window {
+mod test_window {
 	use super::Window;
 
 	#[test]
@@ -187,10 +253,10 @@ mod test_windowed_string {
 			buffer: String::from("0123456789"),
 
 			head: 0,
-			window: Window {
+			window: Some(Window {
 				start: 0,
 				width: 5,
-			}
+			})
 		};
 		assert_eq!(ws.value(), String::from("0123…"));
 
@@ -202,10 +268,10 @@ mod test_windowed_string {
 				buffer: String::from("0123456789"),
 
 				head: 1,
-				window: Window{
+				window: Some(Window{
 					start: 0,
 					width: 5,
-				},
+				}),
 			},
 		);
 		assert_eq!(ws.value(), String::from("0123…"));
@@ -221,10 +287,10 @@ mod test_windowed_string {
 				buffer: String::from("0123456789"),
 
 				head: 5,
-				window: Window{
+				window: Some(Window{
 					start: 1,
 					width: 5,
-				},
+				}),
 			},
 		);
 		assert_eq!(ws.value(), String::from("…234…"));
@@ -237,12 +303,169 @@ mod test_windowed_string {
 				buffer: String::from("0123456789"),
 
 				head: 4,
-				window: Window{
+				window: Some(Window{
 					start: 1,
 					width: 5,
-				},
+				}),
 			},
 		);
-		assert_eq!(ws.value(), String::from("…234…"))
+		assert_eq!(ws.value(), String::from("…234…"));
+
+		ws.next();
+		ws.next();
+		ws.next();
+		ws.next();
+		ws.next();
+
+		assert_eq!(
+			ws,
+			WindowedString{
+				buffer: String::from("0123456789"),
+
+				head: 9,
+				window: Some(Window{
+					start: 5,
+					width: 5,
+				}),
+			},
+		);
+		assert_eq!(ws.value(), String::from("…6789"));
+	}
+
+	#[test]
+	fn test_set_width() {
+		struct Test<'a> {
+			title: &'a str,
+
+			string: WindowedString,
+			width: usize,
+
+			expected: Window,
+			value: String,
+		}
+
+		let cases = vec![
+			Test{
+				title: "when empty string has None window",
+				string: WindowedString{
+					buffer: String::new(),
+					head: 0,
+					window: None,
+				},
+				width: 10,
+				expected: Window{
+					start: 0,
+					width: 10,
+				},
+				value: String::new(),
+			},
+			Test{
+				title: "when resize empty string at start",
+				string: WindowedString{
+					buffer: String::new(),
+					head: 0,
+					window: None,
+				},
+				width: 10,
+				expected: Window{
+					start: 0,
+					width: 10,
+				},
+				value: String::new(),
+			},
+
+			Test{
+				title: "when string has None window at start and fits",
+				string: WindowedString{
+					buffer: String::from("0123456789"),
+					head: 0,
+					window: None,
+				},
+				width: 15,
+				expected: Window{
+					start: 0,
+					width: 15,
+				},
+				value: String::from("0123456789")
+			},
+			Test{
+				title: "when string has None window at start and does not fit",
+				string: WindowedString{
+					buffer: String::from("0123456789"),
+					head: 0,
+					window: None,
+				},
+				width: 5,
+				expected: Window{
+					start: 0,
+					width: 5,
+				},
+				value: String::from("0123…")
+			},
+
+			Test{
+				title: "when shrink in middle",
+				string: WindowedString{
+					buffer: String::from("0123456789"),
+					head: 4,
+					window: Some(Window{
+						start: 2,
+						width: 5,
+					}),
+				},
+				width: 4,
+				expected: Window{
+					start: 1,
+					width: 4,
+				},
+				value:String::from("…23…"),
+			},
+			Test{
+				title: "when shrink at end",
+				string: WindowedString{
+					buffer: String::from("0123456789"),
+					head: 9,
+					window: Some(Window{
+						start: 2,
+						width: 8,
+					}),
+				},
+				width: 5,
+				expected: Window{
+					start: 5,
+					width: 5,
+				},
+				value: String::from("…6789"),
+			},
+
+			Test{
+				title: "when grow to include end and before",
+				string: WindowedString {
+					buffer: String::from("0123456789"),
+					head: 7,
+					window: Some(Window{
+						start: 5,
+						width: 5,
+					}),
+				},
+				width: 8,
+				expected: Window{
+					start: 2,
+					width: 8,
+				},
+				value: String::from("…3456789"),
+			}
+		];
+
+		for mut c in cases {
+			if c.title != "when shrink at end" {
+				continue
+			}
+
+			c.string.set_width(c.width);
+
+			assert_eq!(c.string.window, Some(c.expected), "{}", c.title);
+			assert_eq!(c.string.value(), c.value, "{}", c.title);
+		}
 	}
 }

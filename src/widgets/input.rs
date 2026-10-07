@@ -1,3 +1,5 @@
+use std::array::from_fn;
+
 use crossterm::event::{self, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Constraint::{Fill, Length};
@@ -8,8 +10,8 @@ use ratatui::widgets::{Block, StatefulWidget, TableState, Widget};
 use ratatui::Frame;
 
 use crate::error::AppError;
+use crate::widgets::string::WindowedString;
 
-// todo: consider adding NoMatch vairnat to disitinguish between received a value and expecting more vs value awas received but not something that is handled
 // todo: rename tosomething like HandleAction
 pub enum HandleState {
     // The handler has received and delt wiuth the most recent event, and is expecting more.
@@ -74,29 +76,20 @@ impl<First: InputHandler, Second: InputHandler> InputHandler
 // todo: need to support text being longer than the input widget width
 #[derive(Default)]
 pub struct InputState {
-    buffer: String,
-    head: u16,
+    buffer: WindowedString,
 
     // Position should point to the start of the input buffer on the terminal. The cursor position can be determined by adding InputState.head to position.x. If position is None the Input does not have focus and should not move the cursor.
     position: Option<Position>,
 }
 
 impl InputState {
-    pub fn move_cursor(&mut self, n: i8) {
-        self.head = self
-            .head
-            .saturating_add_signed(n as i16)
-            .min(self.buffer.len() as u16);
-    }
-
     pub fn reset(&mut self) {
-        self.buffer.clear();
-        self.head = 0;
+        self.buffer = WindowedString::default();
         self.position = None;
     }
 
-    pub fn value(&self) -> &str {
-        &self.buffer
+    pub fn value(&self) -> String {
+        self.buffer.value()
     }
 
     pub fn set_position(&mut self, position: Option<Position>) {
@@ -106,7 +99,7 @@ impl InputState {
     pub fn set_cursor_position(&self, frame: &mut Frame) {
         if let Some(p) = self.position {
             frame.set_cursor_position(Position {
-                x: (p.x + self.head),
+                x: (p.x + self.buffer.cursor_offset()),
                 ..p
             });
         }
@@ -118,27 +111,18 @@ impl InputHandler for InputState {
         match event.code {
             KeyCode::Char(c) => {
                 if c == 'u' && event.modifiers.contains(KeyModifiers::CONTROL) {
-                    self.buffer.truncate(0); // todo: this should only remove the characters before self.head not evrything
-                    self.head = 0;
+                    self.buffer.remove_to_start();
                 } else {
-                    self.buffer.insert(self.head as usize, c);
-                    self.move_cursor(1);
+                    self.buffer.insert(c);
                 }
             }
 
-            KeyCode::Right => self.move_cursor(1),
-            KeyCode::Left => self.move_cursor(-1),
+            KeyCode::Right => self.buffer.next(),
+            KeyCode::Left => self.buffer.previous(),
 
-            KeyCode::Backspace => {
-                if self.head != 0 {
-                    self.buffer.remove(self.head.saturating_sub(1) as usize);
-                }
-
-                self.move_cursor(-1);
-            }
+            KeyCode::Backspace => self.buffer.remove(),
 
             KeyCode::Enter => return Ok(HandleState::Done),
-
             KeyCode::Esc => return Ok(HandleState::Cancelled),
 
             _ => return Ok(HandleState::Ignored),
@@ -147,7 +131,6 @@ impl InputHandler for InputState {
         Ok(HandleState::Handled)
     }
 }
-
 pub struct Input {}
 
 impl Input {
@@ -173,6 +156,7 @@ impl StatefulWidget for Input {
     // state.set_cursor(frame);
     // ```
     fn render(self, rect: Rect, buffer: &mut Buffer, state: &mut Self::State) {
+        state.buffer.set_width(rect.width as usize);
         state.set_position(Some(rect.as_position()));
         let line = Line::from(state.value());
 
@@ -218,7 +202,7 @@ impl<const N: usize> MultiInputState<N> {
         let mut values: [&str; N] = [""; N];
 
         for i in 0..N {
-            values[i] = self.inputs[i].value();
+            values[i] = self.inputs[i].buffer.full_value();
         }
 
         values
@@ -340,60 +324,5 @@ impl InputHandler for TableState {
         }
 
         Ok(HandleState::Handled)
-    }
-}
-
-#[cfg(test)]
-mod test_input_state {
-    use super::*;
-
-    #[test]
-    fn test_mode_cursor() {
-        struct Test<'a> {
-            title: &'a str,
-
-            head: u16,
-            delta: i8,
-
-            expected: u16,
-        }
-
-        let cases = vec![
-            Test {
-                title: "right 1 with Some(0)",
-                head: 0,
-                delta: 1,
-                expected: 1,
-            },
-            Test {
-                title: "right 1 with Some(u16::MAX)",
-                head: u16::MAX,
-                delta: 1,
-                expected: u16::MAX,
-            },
-            Test {
-                title: "left 1 with Some(0)",
-                head: 0,
-                delta: -1,
-                expected: 0,
-            },
-            Test {
-                title: "left 1 with Some(u16::MAX)",
-                head: u16::MAX,
-                delta: -1,
-                expected: u16::MAX - 1,
-            },
-        ];
-
-        for c in cases {
-            let mut state = InputState {
-                head: c.head,
-                ..InputState::default()
-            };
-
-            state.move_cursor(c.delta);
-
-            assert_eq!(c.expected, state.head, "{}", c.title);
-        }
     }
 }
