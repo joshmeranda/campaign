@@ -10,8 +10,7 @@ use ratatui::Frame;
 use crate::error::AppError;
 use crate::widgets::string::WindowedString;
 
-// todo: rename tosomething like HandleAction
-pub enum HandleState {
+pub enum HandleDecision {
     // The handler has received and delt wiuth the most recent event, and is expecting more.
     Handled,
 
@@ -25,22 +24,21 @@ pub enum HandleState {
     Cancelled,
 }
 
-// todo: add default implementations for input handler for List and Table
 pub trait InputHandler {
     // handle reads a keyboard events and returns Some(true) the InputHanlder should expect to continue taking input. In most cases, this will be when the handler reads ENTER.
-    fn handle(&mut self) -> Result<HandleState, AppError> {
+    fn handle(&mut self) -> Result<HandleDecision, AppError> {
         if let Some(key) = event::read()?.as_key_press_event() {
             self.handle_event(key)
         } else {
-            Ok(HandleState::Handled)
+            Ok(HandleDecision::Handled)
         }
     }
 
-    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError>;
+    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleDecision, AppError>;
 }
 
 impl<H: InputHandler + ?Sized> InputHandler for &mut H {
-    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError> {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleDecision, AppError> {
         (**self).handle_event(event)
     }
 }
@@ -59,15 +57,14 @@ impl<First: InputHandler, Second: InputHandler> InputHandlerChain<First, Second>
 impl<First: InputHandler, Second: InputHandler> InputHandler
     for InputHandlerChain<First, Second>
 {
-    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError> {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleDecision, AppError> {
         match self.first.handle_event(event)? {
-            HandleState::Ignored => self.second.handle_event(event),
+            HandleDecision::Ignored => self.second.handle_event(event),
             state => Ok(state),
         }
     }
 }
 
-// todo: need to support text being longer than the input widget width
 #[derive(Default)]
 pub struct InputState {
     buffer: WindowedString,
@@ -101,7 +98,7 @@ impl InputState {
 }
 
 impl InputHandler for InputState {
-    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError> {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleDecision, AppError> {
         match event.code {
             KeyCode::Char(c) => {
                 if c == 'u' && event.modifiers.contains(KeyModifiers::CONTROL) {
@@ -116,13 +113,13 @@ impl InputHandler for InputState {
 
             KeyCode::Backspace => self.buffer.remove(),
 
-            KeyCode::Enter => return Ok(HandleState::Done),
-            KeyCode::Esc => return Ok(HandleState::Cancelled),
+            KeyCode::Enter => return Ok(HandleDecision::Done),
+            KeyCode::Esc => return Ok(HandleDecision::Cancelled),
 
-            _ => return Ok(HandleState::Ignored),
+            _ => return Ok(HandleDecision::Ignored),
         }
 
-        Ok(HandleState::Handled)
+        Ok(HandleDecision::Handled)
     }
 }
 pub struct Input {}
@@ -213,14 +210,14 @@ impl<const N: usize> Default for MultiInputState<N> {
 }
 
 impl<const N: usize> InputHandler for MultiInputState<N> {
-    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError> {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleDecision, AppError> {
         match event.code {
             KeyCode::Tab => self.next_input(),
             KeyCode::BackTab => self.previous_input(),
 
             KeyCode::Enter => {
                 if self.active_input == N - 1 {
-                    return Ok(HandleState::Done);
+                    return Ok(HandleDecision::Done);
                 } else {
                     self.next_input();
                 }
@@ -228,13 +225,13 @@ impl<const N: usize> InputHandler for MultiInputState<N> {
 
             KeyCode::Esc => {
                 self.reset();
-                return Ok(HandleState::Cancelled);
+                return Ok(HandleDecision::Cancelled);
             }
 
             _ => return self.inputs[self.active_input].handle_event(event),
         };
 
-        Ok(HandleState::Handled)
+        Ok(HandleDecision::Handled)
     }
 }
 
@@ -306,17 +303,17 @@ impl<const N: usize> StatefulWidget for MultiInput<'_, N> {
 }
 
 impl InputHandler for TableState {
-    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError> {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleDecision, AppError> {
         match event.code {
             KeyCode::Up => self.select_previous(),
             KeyCode::Down => self.select_next(),
 
-            KeyCode::Enter => return Ok(HandleState::Done),
-            KeyCode::Esc => return Ok(HandleState::Cancelled),
+            KeyCode::Enter => return Ok(HandleDecision::Done),
+            KeyCode::Esc => return Ok(HandleDecision::Cancelled),
 
-            _ => return Ok(HandleState::Ignored),
+            _ => return Ok(HandleDecision::Ignored),
         }
 
-        Ok(HandleState::Handled)
+        Ok(HandleDecision::Handled)
     }
 }

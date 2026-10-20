@@ -8,7 +8,7 @@ use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Paragraph, Widget};
 
 use crate::error::AppError;
-use crate::widgets::input::{HandleState, InputHandler};
+use crate::widgets::input::{HandleDecision, InputHandler};
 
 #[derive(Default)]
 pub struct OptionsState {
@@ -28,15 +28,15 @@ impl OptionsState {
 }
 
 impl InputHandler for OptionsState {
-    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleState, AppError> {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<HandleDecision, AppError> {
         match event.code {
-            KeyCode::Esc => Ok(HandleState::Cancelled),
+            KeyCode::Esc => Ok(HandleDecision::Cancelled),
             KeyCode::Char(c) => {
                 self.selected = Some(c);
-                Ok(HandleState::Done)
+                Ok(HandleDecision::Done)
             }
 
-            _ => Ok(HandleState::Ignored),
+            _ => Ok(HandleDecision::Ignored),
         }
     }
 }

@@ -16,7 +16,7 @@ use std::fs;
 use crate::error::AppError;
 use crate::types::{Ability, Character, Item, Spell, SpellSlot, Status};
 use crate::widgets::input::{
-    HandleState, Input, InputHandler, InputHandlerChain, InputState, MultiInput, MultiInputState,
+    HandleDecision, Input, InputHandler, InputHandlerChain, InputState, MultiInput, MultiInputState,
 };
 use crate::widgets::options::{OptionBinding, Options, OptionsState};
 
@@ -87,7 +87,7 @@ impl SpellChooseState {
 }
 
 impl InputHandler for SpellChooseState {
-    fn handle_event(&mut self, event: event::KeyEvent) -> Result<HandleState, AppError> {
+    fn handle_event(&mut self, event: event::KeyEvent) -> Result<HandleDecision, AppError> {
         InputHandlerChain::new(&mut self.table, &mut self.input).handle_event(event)
     }
 }
@@ -199,10 +199,10 @@ impl App {
                 match &self.mode {
                     AppMode::Idle => self.handle_events()?,
                     AppMode::Input(_) => match self.bindings_input_state.handle()? {
-                        HandleState::Handled => {}
-                        HandleState::Ignored => {},
-                        HandleState::Cancelled => self.mode = AppMode::Idle,
-                        HandleState::Done => match self.handle_input() {
+                        HandleDecision::Handled => {}
+                        HandleDecision::Ignored => {},
+                        HandleDecision::Cancelled => self.mode = AppMode::Idle,
+                        HandleDecision::Done => match self.handle_input() {
                             Ok(()) => self.mode = AppMode::Idle,
                             Err(err) => self.set_err(err),
                         },
@@ -211,13 +211,13 @@ impl App {
                     AppMode::CreateItem => match self.item_create_state.handle() {
                         Err(err) => self.set_err(err),
                         Ok(handle_state) => match handle_state {
-                            HandleState::Handled => {}
-                        HandleState::Ignored => {},
-                            HandleState::Cancelled => {
+                            HandleDecision::Handled => {}
+                        HandleDecision::Ignored => {},
+                            HandleDecision::Cancelled => {
                                 self.mode = AppMode::Idle;
                                 self.item_create_state.reset()
                             }
-                            HandleState::Done => {
+                            HandleDecision::Done => {
                                 match Item::try_from(self.item_create_state.values()) {
                                     Ok(i) => {
                                         self.status.items.push(i);
@@ -231,9 +231,9 @@ impl App {
                     },
 
                     AppMode::CreateSpellOptions => match self.spell_add_options.handle()? {
-                        HandleState::Handled => {}
-                        HandleState::Ignored => {},
-                        HandleState::Done => match self.spell_add_options.selected() {
+                        HandleDecision::Handled => {}
+                        HandleDecision::Ignored => {},
+                        HandleDecision::Done => match self.spell_add_options.selected() {
                             None => {}
                             Some(c) => {
                                 match c {
@@ -266,18 +266,18 @@ impl App {
                                 }
                             }
                         },
-                        HandleState::Cancelled => self.mode = AppMode::Idle,
+                        HandleDecision::Cancelled => self.mode = AppMode::Idle,
                     },
                     AppMode::CreateSpell => match self.spell_create_state.handle() {
                         Err(err) => self.set_err(err),
                         Ok(handle_state) => match handle_state {
-                            HandleState::Handled => {}
-                            HandleState::Ignored => {},
-                            HandleState::Cancelled => {
+                            HandleDecision::Handled => {}
+                            HandleDecision::Ignored => {},
+                            HandleDecision::Cancelled => {
                                 self.mode = AppMode::Idle;
                                 self.spell_create_state.reset();
                             }
-                            HandleState::Done => {
+                            HandleDecision::Done => {
                                 match Spell::try_from(self.spell_create_state.values()) {
                                     Ok(s) => {
                                         self.character.spells.push(s);
@@ -290,9 +290,9 @@ impl App {
                         },
                     },
                     AppMode::ChooseSpell => match self.spell_choose_state.handle()? {
-                        HandleState::Handled | HandleState::Ignored => {},
-                        HandleState::Cancelled => self.mode = AppMode::Idle,
-                        HandleState::Done => {
+                        HandleDecision::Handled | HandleDecision::Ignored => {},
+                        HandleDecision::Cancelled => self.mode = AppMode::Idle,
+                        HandleDecision::Done => {
                             match self.spell_choose_state.table.selected() {
                                 None => {},
                                 Some(n) => {
@@ -312,9 +312,9 @@ impl App {
                     AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
 
                     AppMode::EditOptions => match self.edit_options_state.handle()? {
-                        HandleState::Handled => {}
-                        HandleState::Ignored => {},
-                        HandleState::Done => match self.edit_options_state.selected() {
+                        HandleDecision::Handled => {}
+                        HandleDecision::Ignored => {},
+                        HandleDecision::Done => match self.edit_options_state.selected() {
                             None => {}
                             Some(c) => {
                                 if let Some(_) = Self::EDIT_OPTIONS.iter().find(|o| o.0 == c) {
@@ -322,7 +322,7 @@ impl App {
                                 }
                             }
                         },
-                        HandleState::Cancelled => self.mode = AppMode::Idle,
+                        HandleDecision::Cancelled => self.mode = AppMode::Idle,
                     },
                     AppMode::Editing => {
                         if let Err(err) = self.edit_file() {
