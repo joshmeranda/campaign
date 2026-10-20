@@ -54,9 +54,7 @@ impl<First: InputHandler, Second: InputHandler> InputHandlerChain<First, Second>
     }
 }
 
-impl<First: InputHandler, Second: InputHandler> InputHandler
-    for InputHandlerChain<First, Second>
-{
+impl<First: InputHandler, Second: InputHandler> InputHandler for InputHandlerChain<First, Second> {
     fn handle_event(&mut self, event: KeyEvent) -> Result<HandleDecision, AppError> {
         match self.first.handle_event(event)? {
             HandleDecision::Ignored => self.second.handle_event(event),

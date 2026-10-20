@@ -73,7 +73,7 @@ struct SpellChooseState {
 impl SpellChooseState {
     fn filter<'a, I>(&self, spells: I) -> impl Iterator<Item = &'a Spell>
     where
-        I: Iterator<Item = &'a Spell>
+        I: Iterator<Item = &'a Spell>,
     {
         let prefix = self.input.value().to_lowercase();
 
@@ -193,14 +193,14 @@ impl App {
 
                 if let Some(err) = run_err {
                     self.set_err(err);
-                    continue
+                    continue;
                 }
 
                 match &self.mode {
                     AppMode::Idle => self.handle_events()?,
                     AppMode::Input(_) => match self.bindings_input_state.handle()? {
                         HandleDecision::Handled => {}
-                        HandleDecision::Ignored => {},
+                        HandleDecision::Ignored => {}
                         HandleDecision::Cancelled => self.mode = AppMode::Idle,
                         HandleDecision::Done => match self.handle_input() {
                             Ok(()) => self.mode = AppMode::Idle,
@@ -212,7 +212,7 @@ impl App {
                         Err(err) => self.set_err(err),
                         Ok(handle_state) => match handle_state {
                             HandleDecision::Handled => {}
-                        HandleDecision::Ignored => {},
+                            HandleDecision::Ignored => {}
                             HandleDecision::Cancelled => {
                                 self.mode = AppMode::Idle;
                                 self.item_create_state.reset()
@@ -232,39 +232,39 @@ impl App {
 
                     AppMode::CreateSpellOptions => match self.spell_add_options.handle()? {
                         HandleDecision::Handled => {}
-                        HandleDecision::Ignored => {},
+                        HandleDecision::Ignored => {}
                         HandleDecision::Done => match self.spell_add_options.selected() {
                             None => {}
-                            Some(c) => {
-                                match c {
-                                    'm' => self.mode = AppMode::CreateSpell,
-                                    'c' => {
-                                        self.mode = AppMode::ChooseSpell;
+                            Some(c) => match c {
+                                'm' => self.mode = AppMode::CreateSpell,
+                                'c' => {
+                                    self.mode = AppMode::ChooseSpell;
 
-                                        let mut spells = match Spell::from_csv(std::path::PathBuf::from("assets/spells.csv")) {
-                                            Ok(s) => s,
-                                            Err(err) => {
-                                                self.mode = AppMode::Idle;
-                                                self.set_err(err);
-                                                continue;
-                                            },
-                                        };
+                                    let mut spells = match Spell::from_csv(
+                                        std::path::PathBuf::from("assets/spells.csv"),
+                                    ) {
+                                        Ok(s) => s,
+                                        Err(err) => {
+                                            self.mode = AppMode::Idle;
+                                            self.set_err(err);
+                                            continue;
+                                        }
+                                    };
 
-                                        spells.sort_by(|lhs, rhs| {
-                                            if lhs.level > rhs.level {
-                                                std::cmp::Ordering::Greater
-                                            } else if lhs.level < rhs.level {
-                                                std::cmp::Ordering::Less
-                                            } else {
-                                                lhs.name.cmp(&rhs.name)
-                                            }
-                                        });
+                                    spells.sort_by(|lhs, rhs| {
+                                        if lhs.level > rhs.level {
+                                            std::cmp::Ordering::Greater
+                                        } else if lhs.level < rhs.level {
+                                            std::cmp::Ordering::Less
+                                        } else {
+                                            lhs.name.cmp(&rhs.name)
+                                        }
+                                    });
 
-                                        self.spells = spells;
-                                    }
-                                    _ => {}
+                                    self.spells = spells;
                                 }
-                            }
+                                _ => {}
+                            },
                         },
                         HandleDecision::Cancelled => self.mode = AppMode::Idle,
                     },
@@ -272,7 +272,7 @@ impl App {
                         Err(err) => self.set_err(err),
                         Ok(handle_state) => match handle_state {
                             HandleDecision::Handled => {}
-                            HandleDecision::Ignored => {},
+                            HandleDecision::Ignored => {}
                             HandleDecision::Cancelled => {
                                 self.mode = AppMode::Idle;
                                 self.spell_create_state.reset();
@@ -290,11 +290,11 @@ impl App {
                         },
                     },
                     AppMode::ChooseSpell => match self.spell_choose_state.handle()? {
-                        HandleDecision::Handled | HandleDecision::Ignored => {},
+                        HandleDecision::Handled | HandleDecision::Ignored => {}
                         HandleDecision::Cancelled => self.mode = AppMode::Idle,
                         HandleDecision::Done => {
                             match self.spell_choose_state.table.selected() {
-                                None => {},
+                                None => {}
                                 Some(n) => {
                                     // todo: we shuold avoid having to re-filter to select a spell
                                     let spell = self.spell_choose_state
@@ -306,14 +306,14 @@ impl App {
 
                             self.spell_choose_state.reset();
                             self.mode = AppMode::Idle;
-                        },
+                        }
                     },
 
                     AppMode::DeathSavingThrows => self.handle_death_saving_events()?,
 
                     AppMode::EditOptions => match self.edit_options_state.handle()? {
                         HandleDecision::Handled => {}
-                        HandleDecision::Ignored => {},
+                        HandleDecision::Ignored => {}
                         HandleDecision::Done => match self.edit_options_state.selected() {
                             None => {}
                             Some(c) => {
@@ -436,7 +436,11 @@ impl App {
     fn spell_slot_is_available(&self, slot: SpellSlot) -> bool {
         match slot {
             SpellSlot::Cantrip => true,
-            _ => self.character.spell_slots[slot as usize - 1].saturating_sub(self.status.used_slots[slot as usize-1]) > 0
+            _ => {
+                self.character.spell_slots[slot as usize - 1]
+                    .saturating_sub(self.status.used_slots[slot as usize - 1])
+                    > 0
+            }
         }
     }
 
@@ -840,7 +844,7 @@ impl App {
                     .block(
                         Self::default_block()
                             .title_alignment(Alignment::Left)
-                            .title(SpellSlot::try_from((i as u8)+1).unwrap().to_string()),
+                            .title(SpellSlot::try_from((i as u8) + 1).unwrap().to_string()),
                     ),
                 slot,
             );
@@ -939,8 +943,7 @@ impl App {
 
             rows.push(Row::new([
                 Span::from(spell.name.to_string()),
-                spell.level.to_string()
-                    .fg(color),
+                spell.level.to_string().fg(color),
                 Span::from(spell.description.clone()),
             ]));
         }
@@ -1210,19 +1213,23 @@ impl App {
     fn render_choose_spell(&mut self, frame: &mut Frame) -> Result<(), AppError> {
         let area = frame.area().centered(Length(100), Length(30));
 
-        let [
-            input_area,
-            table_area,
-        ] = area.inner(Margin{horizontal: 1, vertical: 1}).layout(&Layout::vertical([Length(1), Fill(1)]));
+        let [input_area, table_area] = area
+            .inner(Margin {
+                horizontal: 1,
+                vertical: 1,
+            })
+            .layout(&Layout::vertical([Length(1), Fill(1)]));
 
-        let [
-            prompt_area,
-            input_area,
-        ] = input_area.layout(&Layout::horizontal([Length(20), Fill(1)]).spacing(1));
+        let [prompt_area, input_area] =
+            input_area.layout(&Layout::horizontal([Length(20), Fill(1)]).spacing(1));
 
-        let rows = self.spell_choose_state
-            .filter(self.spells.iter())
-            .map(|s| Row::new(vec![s.name.clone(), s.level.to_string(), s.description.clone()]));
+        let rows = self.spell_choose_state.filter(self.spells.iter()).map(|s| {
+            Row::new(vec![
+                s.name.clone(),
+                s.level.to_string(),
+                s.description.clone(),
+            ])
+        });
 
         let table = Table::new(rows, [Length(20), Length(10), Fill(1)])
             .row_highlight_style(Style::new().on_white().bold())
@@ -1231,9 +1238,17 @@ impl App {
             .row_highlight_style(Style::default().bg(Self::TAB_COLOR));
 
         frame.render_widget(Clear, area);
-        frame.render_widget(Self::default_block().title(" press ENTER to choose a spell ").title_bottom(" press ESC to cancel "), area);
+        frame.render_widget(
+            Self::default_block()
+                .title(" press ENTER to choose a spell ")
+                .title_bottom(" press ESC to cancel "),
+            area,
+        );
 
-        frame.render_widget(Line::from("Spell name".bg(Color::White).fg(Color::Black)).alignment(Alignment::Right), prompt_area);
+        frame.render_widget(
+            Line::from("Spell name".bg(Color::White).fg(Color::Black)).alignment(Alignment::Right),
+            prompt_area,
+        );
         frame.render_stateful_widget(Input::new(), input_area, &mut self.spell_choose_state.input);
 
         self.spell_choose_state.input.set_cursor_position(frame);

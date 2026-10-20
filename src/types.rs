@@ -1,6 +1,6 @@
+use csv::ReaderBuilder;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, path::Path};
-use csv::ReaderBuilder;
 
 use crate::error::AppError;
 
@@ -89,7 +89,7 @@ impl Display for SpellSlot {
             SpellSlot::Sixth => "VI",
             SpellSlot::Seventh => "VII",
             SpellSlot::Eighth => "VIII",
-            SpellSlot::Ninth => "IX",   
+            SpellSlot::Ninth => "IX",
         };
 
         write!(f, "{}", s)
@@ -111,20 +111,21 @@ pub struct Spell {
 impl Spell {
     // todo: rename
     pub fn from_csv<P>(p: P) -> Result<Vec<Spell>, AppError>
-        where
-            P: AsRef<Path>,
+    where
+        P: AsRef<Path>,
     {
-        let file   = std::fs::File::open(p)?;
+        let file = std::fs::File::open(p)?;
         let mut reader = ReaderBuilder::new()
             // .has_headers(false)
             .from_reader(file);
 
-        reader
-            .deserialize::<Spell>()
-            .try_fold(Vec::new(), |mut spells, result| -> Result<Vec<Spell>, AppError> {
+        reader.deserialize::<Spell>().try_fold(
+            Vec::new(),
+            |mut spells, result| -> Result<Vec<Spell>, AppError> {
                 spells.push(result?);
                 Ok(spells)
-            })
+            },
+        )
     }
 }
 

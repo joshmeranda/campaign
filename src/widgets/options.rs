@@ -1,9 +1,9 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Alignment, Rect};
 use ratatui::layout::Constraint::{Fill, Length};
-use ratatui::style::Stylize;
 use ratatui::layout::Margin;
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::Stylize;
 use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Paragraph, Widget};
 
@@ -73,10 +73,15 @@ impl<'a, const N: usize> Widget for Options<'a, N> {
 
         if let Some(block) = self.block {
             block.render(area, buffer);
-            area = area.inner(Margin { horizontal: 1, vertical: 1 })
+            area = area.inner(Margin {
+                horizontal: 1,
+                vertical: 1,
+            })
         }
 
-        Paragraph::new(text).alignment(Alignment::Center)
-            .render(area.centered(Fill(1), Length(self.options.len() as u16)), buffer);
+        Paragraph::new(text).alignment(Alignment::Center).render(
+            area.centered(Fill(1), Length(self.options.len() as u16)),
+            buffer,
+        );
     }
 }

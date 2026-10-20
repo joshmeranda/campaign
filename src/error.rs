@@ -43,7 +43,7 @@ impl From<serde_yaml::Error> for AppError {
 }
 
 impl From<csv::Error> for AppError {
-    fn from (value: csv::Error) -> AppError {
+    fn from(value: csv::Error) -> AppError {
         AppError::Csv(value)
     }
 }
