@@ -11,10 +11,6 @@ impl Window {
 			..*self
 		}
 	}
-
-	fn contains(&self, n: usize) -> bool {
-		n >= self.start && n < self.start + self.width
-	}
 }
 
 #[derive(Default, Debug, PartialEq)]
@@ -30,7 +26,7 @@ impl WindowedString {
 	pub fn next(&mut self) {
 		self.head = self.head.saturating_add(1).min(self.buffer.len());
 
-		if !self.window.contains(self.head) {
+		if self.head > self.window.start + self.window.width {
 			self.window = self.window.shift(1);
 		}
 	}
@@ -38,7 +34,7 @@ impl WindowedString {
 	pub fn previous(&mut self) {
 		self.head = self.head.saturating_sub(1);
 
-		if !self.window.contains(self.head) {
+		if self.head <= self.window.start {
 			self.window = self.window.shift(-1)
 		}
 	}
@@ -49,13 +45,20 @@ impl WindowedString {
 	}
 
 	pub fn remove(&mut self) {
-		self.buffer.remove(self.head);
+		if self.head == self.buffer.len() {
+			self.buffer.truncate(self.head -1);
+		} else {
+			self.buffer.remove(self.head);
+		}
+
 		self.previous();
 	}
 
 	pub fn remove_to_start(&mut self) {
 		self.buffer = String::from(&self.buffer[self.head..]);
+
 		self.head = 0;
+		self.window.start = 0;
 	}
 
 	pub fn value(&self) -> String { // todo: would love to return an &str here
@@ -109,72 +112,6 @@ impl WindowedString {
 #[cfg(test)]
 mod test_window {
 	use super::Window;
-
-	#[test]
-	fn test_contains() {
-		struct Test<'a> {
-			title: &'a str,
-
-			window: Window,
-			target: usize,
-
-			expected: bool
-		}
-
-		let cases = vec![
-			Test{
-				title: "contains beggining",
-				window: Window{
-					start: 0,
-					width: 5,
-				},
-				target: 0,
-				expected: true,
-			},
-			Test{
-				title: "contains middle",
-				window: Window{
-					start: 0,
-					width: 5,
-				},
-				target: 3,
-				expected: true,
-			},
-			Test{
-				title: "contains end",
-				window: Window{
-					start: 0,
-					width: 5,
-				},
-				target: 4,
-				expected: true,
-			},
-
-			Test{
-				title: "does not contain after end",
-				window: Window{
-					start: 0,
-					width: 5,
-				},
-				target: 6,
-				expected: false,
-			},
-			Test{
-				title: "does not contain before end",
-				window: Window{
-					start: 5,
-					width: 10,
-				},
-				target: 4,
-				expected: false,
-			},
-
-		];
-
-		for c in cases {
-			assert_eq!(c.expected, c.window.contains(c.target), "{}", c.title);
-		}
-	}
 
 	#[test]
 	fn test_shift() {
