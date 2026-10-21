@@ -78,7 +78,7 @@ impl InputState {
     }
 
     pub fn value(&self) -> String {
-        self.buffer.value()
+        self.buffer.value().into()
     }
 
     pub fn set_position(&mut self, position: Option<Position>) {

@@ -13,6 +13,30 @@ impl Window {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct EllipsedString<'a> {
+	first: bool,
+	last: bool,
+
+	s: &'a str,
+}
+
+impl Into<String> for EllipsedString<'_> {
+	fn into(self) -> String {
+		let mut s = String::from(self.s);
+
+		if self.first {
+			s.replace_range(0..1, "…");
+		}
+
+		if self.last {
+			s.replace_range(s.len()-1..s.len(), "…");
+		}
+
+		s
+	}
+}
+
 #[derive(Default, Debug, PartialEq)]
 pub struct WindowedString {
     buffer: String,
@@ -61,24 +85,22 @@ impl WindowedString {
         self.window.start = 0;
     }
 
-    pub fn value(&self) -> String {
-        // todo: would love to return an &str here
+    pub fn value(&self) -> EllipsedString<'_> {
         if self.buffer.len() < self.window.width {
-            return self.buffer.clone();
-        }
+            EllipsedString {
+				first: false,
+				last: false,
+				s: &self.buffer,
+			}
+        } else {
+			EllipsedString{
+				first: self.window.start > 0,
+				last: self.window.start + self.window.width < self.buffer.len(),
 
-        let mut s =
-            String::from(&self.buffer[self.window.start..self.window.start + self.window.width]);
-
-        if self.window.start > 0 {
-            s.replace_range(0..1, "…");
-        }
-
-        if self.window.start + self.window.width < self.buffer.len() {
-            s.replace_range(s.len() - 1..s.len(), "…");
-        }
-
-        s
+				// todo: we can limit this to the actuall characters to be rendered to limit the amount of data referenced for each WindowedString.
+				s: &self.buffer[self.window.start..self.window.start + self.window.width],
+			}
+		}
     }
 
     pub fn full_value(&self) -> &str {
@@ -133,7 +155,7 @@ mod test_window {
 
 #[cfg(test)]
 mod test_windowed_string {
-    use crate::widgets::string::{Window, WindowedString};
+    use crate::widgets::string::{EllipsedString, Window, WindowedString};
 
     #[test]
     fn test_window_next_previous() {
@@ -143,7 +165,14 @@ mod test_windowed_string {
             head: 0,
             window: Window { start: 0, width: 5 },
         };
-        assert_eq!(ws.value(), String::from("0123…"));
+        assert_eq!(
+			ws.value(),
+			EllipsedString{
+				first: false,
+				last: true,
+				s: "01234",
+			}
+		);
 
         ws.next();
 
@@ -156,12 +185,40 @@ mod test_windowed_string {
                 window: Window { start: 0, width: 5 },
             },
         );
-        assert_eq!(ws.value(), String::from("0123…"));
+        assert_eq!(
+			ws.value(),
+			EllipsedString{
+				first: false,
+				last: true,
+				s: "01234",
+			},
+		);
 
         ws.next();
         ws.next();
         ws.next();
         ws.next();
+        ws.next();
+
+        assert_eq!(
+            ws,
+            WindowedString {
+                buffer: String::from("0123456789"),
+
+                head: 6,
+                window: Window { start: 1, width: 5 },
+            },
+        );
+        assert_eq!(
+			ws.value(),
+			EllipsedString{
+				first: true,
+				last: true,
+				s: "12345",
+			},
+		);
+
+        ws.previous();
 
         assert_eq!(
             ws,
@@ -172,20 +229,14 @@ mod test_windowed_string {
                 window: Window { start: 1, width: 5 },
             },
         );
-        assert_eq!(ws.value(), String::from("…234…"));
-
-        ws.previous();
-
         assert_eq!(
-            ws,
-            WindowedString {
-                buffer: String::from("0123456789"),
-
-                head: 4,
-                window: Window { start: 1, width: 5 },
-            },
-        );
-        assert_eq!(ws.value(), String::from("…234…"));
+			ws.value(),
+			EllipsedString{
+				first: true,
+				last: true,
+				s: "12345",
+			},
+		);
 
         ws.next();
         ws.next();
@@ -198,11 +249,18 @@ mod test_windowed_string {
             WindowedString {
                 buffer: String::from("0123456789"),
 
-                head: 9,
+                head: 10,
                 window: Window { start: 5, width: 5 },
             },
         );
-        assert_eq!(ws.value(), String::from("…6789"));
+        assert_eq!(
+			ws.value(),
+			EllipsedString{
+				first: true,
+				last: false,
+				s: "56789",
+			},
+		);
     }
 
     #[test]
@@ -300,7 +358,9 @@ mod test_windowed_string {
             c.string.set_width(c.width);
 
             assert_eq!(c.string.window, c.expected, "{}", c.title);
-            assert_eq!(c.string.value(), c.value, "{}", c.title);
+
+			let s: String = c.string.value().into();
+            assert_eq!(s, c.value, "{}", c.title);
         }
     }
 }
