@@ -15,8 +15,8 @@ impl Window {
 
 #[derive(Debug, PartialEq)]
 pub struct EllipsedString<'a> {
-	first: bool,
-	last: bool,
+	leading: bool,
+	trailing: bool,
 
 	s: &'a str,
 }
@@ -25,11 +25,11 @@ impl Into<String> for EllipsedString<'_> {
 	fn into(self) -> String {
 		let mut s = String::from(self.s);
 
-		if self.first {
+		if self.leading {
 			s.replace_range(0..1, "…");
 		}
 
-		if self.last {
+		if self.trailing {
 			s.replace_range(s.len()-1..s.len(), "…");
 		}
 
@@ -88,14 +88,14 @@ impl WindowedString {
     pub fn value(&self) -> EllipsedString<'_> {
         if self.buffer.len() < self.window.width {
             EllipsedString {
-				first: false,
-				last: false,
+				leading: false,
+				trailing: false,
 				s: &self.buffer,
 			}
         } else {
 			EllipsedString{
-				first: self.window.start > 0,
-				last: self.window.start + self.window.width < self.buffer.len(),
+				leading: self.window.start > 0,
+				trailing: self.window.start + self.window.width < self.buffer.len(),
 
 				// todo: we can limit this to the actuall characters to be rendered to limit the amount of data referenced for each WindowedString.
 				s: &self.buffer[self.window.start..self.window.start + self.window.width],
@@ -168,8 +168,8 @@ mod test_windowed_string {
         assert_eq!(
 			ws.value(),
 			EllipsedString{
-				first: false,
-				last: true,
+				leading: false,
+				trailing: true,
 				s: "01234",
 			}
 		);
@@ -188,8 +188,8 @@ mod test_windowed_string {
         assert_eq!(
 			ws.value(),
 			EllipsedString{
-				first: false,
-				last: true,
+				leading: false,
+				trailing: true,
 				s: "01234",
 			},
 		);
@@ -212,8 +212,8 @@ mod test_windowed_string {
         assert_eq!(
 			ws.value(),
 			EllipsedString{
-				first: true,
-				last: true,
+				leading: true,
+				trailing: true,
 				s: "12345",
 			},
 		);
@@ -232,8 +232,8 @@ mod test_windowed_string {
         assert_eq!(
 			ws.value(),
 			EllipsedString{
-				first: true,
-				last: true,
+				leading: true,
+				trailing: true,
 				s: "12345",
 			},
 		);
@@ -256,8 +256,8 @@ mod test_windowed_string {
         assert_eq!(
 			ws.value(),
 			EllipsedString{
-				first: true,
-				last: false,
+				leading: true,
+				trailing: false,
 				s: "56789",
 			},
 		);
