@@ -15,26 +15,26 @@ impl Window {
 
 #[derive(Debug, PartialEq)]
 pub struct EllipsedString<'a> {
-	leading: bool,
-	trailing: bool,
+    leading: bool,
+    trailing: bool,
 
-	s: &'a str,
+    s: &'a str,
 }
 
 impl Into<String> for EllipsedString<'_> {
-	fn into(self) -> String {
-		let mut s = String::from(self.s);
+    fn into(self) -> String {
+        let mut s = String::from(self.s);
 
-		if self.leading {
-			s.replace_range(0..1, "…");
-		}
+        if self.leading {
+            s.replace_range(0..1, "…");
+        }
 
-		if self.trailing {
-			s.replace_range(s.len()-1..s.len(), "…");
-		}
+        if self.trailing {
+            s.replace_range(s.len() - 1..s.len(), "…");
+        }
 
-		s
-	}
+        s
+    }
 }
 
 #[derive(Default, Debug, PartialEq)]
@@ -88,19 +88,19 @@ impl WindowedString {
     pub fn value(&self) -> EllipsedString<'_> {
         if self.buffer.len() < self.window.width {
             EllipsedString {
-				leading: false,
-				trailing: false,
-				s: &self.buffer,
-			}
+                leading: false,
+                trailing: false,
+                s: &self.buffer,
+            }
         } else {
-			EllipsedString{
-				leading: self.window.start > 0,
-				trailing: self.window.start + self.window.width < self.buffer.len(),
+            EllipsedString {
+                leading: self.window.start > 0,
+                trailing: self.window.start + self.window.width < self.buffer.len(),
 
-				// todo: we can limit this to the actuall characters to be rendered to limit the amount of data referenced for each WindowedString.
-				s: &self.buffer[self.window.start..self.window.start + self.window.width],
-			}
-		}
+                // todo: we can limit this to the actuall characters to be rendered to limit the amount of data referenced for each WindowedString.
+                s: &self.buffer[self.window.start..self.window.start + self.window.width],
+            }
+        }
     }
 
     pub fn full_value(&self) -> &str {
@@ -166,13 +166,13 @@ mod test_windowed_string {
             window: Window { start: 0, width: 5 },
         };
         assert_eq!(
-			ws.value(),
-			EllipsedString{
-				leading: false,
-				trailing: true,
-				s: "01234",
-			}
-		);
+            ws.value(),
+            EllipsedString {
+                leading: false,
+                trailing: true,
+                s: "01234",
+            }
+        );
 
         ws.next();
 
@@ -186,13 +186,13 @@ mod test_windowed_string {
             },
         );
         assert_eq!(
-			ws.value(),
-			EllipsedString{
-				leading: false,
-				trailing: true,
-				s: "01234",
-			},
-		);
+            ws.value(),
+            EllipsedString {
+                leading: false,
+                trailing: true,
+                s: "01234",
+            },
+        );
 
         ws.next();
         ws.next();
@@ -210,13 +210,13 @@ mod test_windowed_string {
             },
         );
         assert_eq!(
-			ws.value(),
-			EllipsedString{
-				leading: true,
-				trailing: true,
-				s: "12345",
-			},
-		);
+            ws.value(),
+            EllipsedString {
+                leading: true,
+                trailing: true,
+                s: "12345",
+            },
+        );
 
         ws.previous();
 
@@ -230,13 +230,13 @@ mod test_windowed_string {
             },
         );
         assert_eq!(
-			ws.value(),
-			EllipsedString{
-				leading: true,
-				trailing: true,
-				s: "12345",
-			},
-		);
+            ws.value(),
+            EllipsedString {
+                leading: true,
+                trailing: true,
+                s: "12345",
+            },
+        );
 
         ws.next();
         ws.next();
@@ -254,13 +254,13 @@ mod test_windowed_string {
             },
         );
         assert_eq!(
-			ws.value(),
-			EllipsedString{
-				leading: true,
-				trailing: false,
-				s: "56789",
-			},
-		);
+            ws.value(),
+            EllipsedString {
+                leading: true,
+                trailing: false,
+                s: "56789",
+            },
+        );
     }
 
     #[test]
@@ -359,7 +359,7 @@ mod test_windowed_string {
 
             assert_eq!(c.string.window, c.expected, "{}", c.title);
 
-			let s: String = c.string.value().into();
+            let s: String = c.string.value().into();
             assert_eq!(s, c.value, "{}", c.title);
         }
     }

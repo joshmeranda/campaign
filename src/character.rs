@@ -208,7 +208,7 @@ impl App {
                             }
 
                             self.bindings_input_state.reset();
-                        },
+                        }
                     },
 
                     AppMode::CreateItem => match self.item_create_state.handle() {
