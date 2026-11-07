@@ -202,9 +202,13 @@ impl App {
                         HandleDecision::Handled => {}
                         HandleDecision::Ignored => {}
                         HandleDecision::Cancelled => self.mode = AppMode::Idle,
-                        HandleDecision::Done => match self.handle_input() {
-                            Ok(()) => self.mode = AppMode::Idle,
-                            Err(err) => self.set_err(err),
+                        HandleDecision::Done => {
+                            match self.handle_input() {
+                                Ok(()) => self.mode = AppMode::Idle,
+                                Err(err) => self.set_err(err),
+                            }
+
+                            self.bindings_input_state.reset();
                         },
                     },
 
