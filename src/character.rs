@@ -571,17 +571,10 @@ impl App {
     fn handle_input(&mut self) -> Result<(), AppError> {
         match self.mode {
             AppMode::Input(t) => match t {
-                InputType::Damage => {
-                    self.status.damage(
-                        self.bindings_input_state.value().parse::<u8>()?,
-                        self.character.max_hp,
-                    );
-
-                    if self.character.max_hp.saturating_sub(self.status.damage) == 0 {
-                        self.status.enter_death_saving();
-                        self.mode = AppMode::DeathSavingThrows;
-                    }
-                }
+                InputType::Damage => self.status.damage(
+                    self.bindings_input_state.value().parse::<u8>()?,
+                    self.character.max_hp,
+                ),
                 InputType::Heal => self
                     .status
                     .heal(self.bindings_input_state.value().parse::<u8>()?),
@@ -605,6 +598,13 @@ impl App {
                 "bug: handle_input should only be called while App.mode == AppMode::Input(AppType)"
             ),
         };
+
+        if self.character.max_hp.saturating_sub(self.status.damage) == 0 {
+            self.status.enter_death_saving();
+            self.mode = AppMode::DeathSavingThrows
+        } else {
+            self.mode = AppMode::Idle
+        }
 
         Ok(())
     }
